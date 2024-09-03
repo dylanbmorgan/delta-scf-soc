@@ -1,0 +1,257 @@
+#+title: Model System
+#+startup: latexpreview inlineimages
+#+latex_header: \usepackage{braket}
+#+property: header-args :async yes
+#+property: header-args:bash :session sh
+#+property: header-args:julia :session jl :results silent
+
+## Setup
+### Imports
+#+begin_src julia
+using DrWatson
+#+end_src
+
+#+begin_src julia
+@quickactivate "DeltaSCFSOC"
+#+end_src
+
+#+begin_src julia
+using LinearAlgebra, Plots
+#+end_src
+
+### Constants
+#+begin_src julia
+const ħ = 1.0545718e-34
+#+end_src
+
+### Types
+#+begin_src julia
+struct GreaterThan{T<:Real}
+    x::T
+    min_value::T
+
+    function greater_than(x::T, min_value::T) where {T<:Real}
+        if x < min_value
+            throw(DomainError("$x must be >= $min_value"))
+        end
+        new{T}(x, min_value)
+    end
+end
+#+end_src
+
+#+begin_src julia
+struct Between{T<:Real}
+    x::T
+    min::T
+    max::T
+
+    function between(x::T, min::T, max::T) where {T<:Real}
+        if x < min || x > max
+            throw(DomainError("$x must be in [$min, $max]"))
+        end
+        new{T}(x, min, max)
+    end
+end
+#+end_src
+
+#+begin_src julia
+struct BetweenPlusMinus{T<:Real}
+    x::T
+    origin::T
+
+    function between_plus_minus(x::T, origin::T) where {T<:Real}
+        if x < -origin || x > origin
+            throw(DomainError("$x must be in [-$origin, $origin]"))
+        end
+        new{T}(x, origin)
+    end
+end
+#+end_src
+
+## Model System
+We can set up a spin-orbit coupling Hamiltonian for a model system, where the wavefunction is represented in a basis of the \(\ell\), \(m_{\ell}\), and \(m_s\) quantum numbers for a given \(n\).
+
+#+name: model-H
+\begin{equation}
+    \Braket{ \Psi_{\ell, m_{\ell}, m_s} | \lambda \hat{L} \cdot \hat{S} | \Psi_{\ell, m_{\ell}, m_s} }
+\end{equation}
+
+Where \(\hat{L}\) is the orbital angular momentum operator, \(\hat{S}\) is the spin operator, and \(\lambda\) is the spin-orbit coupling strength, which is dependent on the atomic number of the elements in the solid.
+
+### Wavefunction
+Setup the wavefunction as a ~mutable struct~ so we can enact the ladder operators on the wavefunction object later
+#+begin_src julia
+mutable struct Wavefunction
+    λ::Float64
+    n::GreaterThan{Int}
+    l::Between{Int}
+    m_l::BetweenPlusMinus{Int}
+    m_s::Float16
+
+    function wavefunction(
+        lambda::Float64,
+        principal::Int,
+        azimuth::Int,
+        magnetic::Int,
+        spin::Float16,
+    )
+
+        if spin != 0.5 || spin != -0.5
+            throw(ArgumentError("Spin must be either 0.5 or -0.5"))
+        end
+
+        λ = lambda
+        n = greater_than(principal, 0)
+        l = between(azimuth, 0, n - 1)
+        m_l = between_plus_minus(magnetic_val, azimuth_val)
+        m_s = spin
+        new(λ, n, l, m_l, m_s)
+    end
+end
+#+end_src
+
+## Define the Operator
+### Uncertainty Principle
+The uncertainty principle states that when two observable operators do not commute, they cannot be measured simultaneously, and the more accurately that one is known, the less accurately the other can be known. For angular momentum, this is given by the Robertson-Schrödinger relation
+
+\begin{equation}
+    \sigma_{J_x} \sigma_{J_y} \geq \frac{\hbar}{2} | \langle J_z \rangle |
+\end{equation}
+
+where \(\sigma_J\) is the standard deviation in the measured values of \(J\). \(J\) can also be replaced by \(L\) or \(S\), and \(x, y, z\) can be rearranged in any order. However it is still possible to measure \(J^2\) and any one component of \(J\). These values are characterised by \(\ell\) and \(m\).
+
+### Derivation
+In order to calculate [[model]], we need to apply the operators to the ket and work out the prefactors.
+
+#+name: angular-spin-relation
+\begin{equation}
+    \begin{split}
+        \hat{J}^2 &= \left( \hat{L} + \hat{S} \right)^2 \\
+        &= \hat{L}^2 + \hat{S}^2 + 2\hat{L} \cdot \hat{S} \\
+        &= \hat{L}^2 + \hat{S}^2 + 2\hat{L}_z\hat{S}_z + \hat{L}_+\hat{S}_- + \hat{L}_-\hat{S}_+ \\
+    \end{split}
+\end{equation}
+
+However, we can neglect the \(\hat{L}^2 + \hat{S}^2\) terms as they are not included in our Hamiltonian in [[model]]. Now, to define how each operator acts on the ket
+
+\begin{equation}
+    \begin{split}
+        \hat{L}_z \Ket{ \psi_{\ell, m_{\ell}, m_s} } &= \hbar m_{\ell} \Ket{ \psi_{\ell, m_{\ell}, m_s} } \\
+        \hat{S}_z \Ket{ \psi_{\ell, m_{\ell}, m_s} } &= \hbar m_S \Ket{ \psi_{\ell, m_{\ell}, m_s} }
+    \end{split}
+\end{equation}
+
+\begin{equation}
+    \begin{split}
+        L_+ \Ket{ \psi_{\ell, m_{\ell}, m_s} } &= \left[ (\ell + m_{\ell} + 1)(l - m_{\ell}) \right]^{\frac{1}{2}} \hbar \Ket{ \psi_{\ell, m_{\ell} + 1, m_s} } \\
+        L_- \Ket{ \psi_{\ell, m_{\ell}, m_s} } &= \left[ (\ell - m_{\ell} + 1)(l + m_{\ell}) \right]^{\frac{1}{2}} \hbar \Ket{ \psi_{\ell, m_{\ell} - 1, m_s} }
+    \end{split}
+\end{equation}
+
+\begin{equation}
+    \begin{split}
+        S_+ \Ket{ \psi_{\ell, m_{\ell}, m_s} } &= \left[ (s + m_s + 1)(s - m_s) \right]^{\frac{1}{2}} \hbar \Ket{ \psi_{\ell, m_{\ell}, m_s + 1} } \\
+        S_- \Ket{ \psi_{\ell, m_{\ell}, m_s} } &= \left[ (s - m_s + 1)(s + m_s) \right]^{\frac{1}{2}} \hbar \Ket{ \psi_{\ell, m_{\ell}, m_s - 1} } \\
+    \end{split}
+\end{equation}
+
+Then, substituting [[angular-spin-relation]] into [[model-H]], and applying \(\lambda (\hat{L} \cdot \hat{S})\) to \(\Ket{ \psi_{\ell, m_{\ell}, m_s} }\):
+
+\begin{equation}
+    \implies \lambda (\hat{L} \cdot \hat{S}) \Ket{ \Psi_{\ell, m_{\ell}, m_s} } = \frac{\lambda \hbar}{2}(m_{\ell} \cdot m_s) \Ket{ \psi_{\ell, m_{\ell}, m_s} } + \frac{\lambda \hbar^2}{2} \left[ (\ell^2 + \ell - 3m_{\ell})(s^2 + s - 3m_s) \right]^{\frac{1}{2}} \Ket{ \psi_{\ell, m_{\ell} + 1, m_s - 1} } + \frac{\lambda \hbar^2}{2} \left[ (\ell^2 + \ell - m_{\ell})(s^2 + s - m_s) \right]^{\frac{1}{2}} \Ket{ \psi_{\ell, m_{\ell} - 1, m_s + 1} }
+\end{equation}
+
+\begin{equation}
+    \implies \Braket{ \Psi_{\ell', m_{\ell}', m_s'} | \lambda (\hat{L} \cdot \hat{S}) | \Psi_{\ell, m_{\ell}, m_s} } = \lambda \Braket{ \psi_{\ell', m_{\ell}', m_s'} | \hat{L}_z \hat{S}_z | \psi_{\ell, m_{\ell}, m_s} } + \lambda \Braket{ \psi_{\ell', m_{\ell}', m_s'} | \hat{L}_+ \hat{S}_- | \psi_{\ell, m_{\ell} + 1, m_s - 1} } + \lambda \Braket{ \psi_{\ell', m_{\ell}', m_s'} | \hat{L}_- \hat{S}_- | \psi_{\ell, m_{\ell} - 1, m_s + 1} }
+\end{equation}
+
+where
+
+\begin{equation}
+    \Braket{ \psi_{\ell', m_{\ell}', m_s'} | \psi_{\ell, m_{\ell}, m_s} } = \delta_{\ell' \ell} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
+\end{equation}
+
+## Solve the Eigenvalue Problem
+### Operator(s) on Ket
+Define how the Hamiltonian acts on the wavefunction in the ket
+
+#+begin_src julia
+# Calculate the z component of the angular momentum and spin operators
+L_z_S_z_prefactor(ψ::Wavefunction) = ((ψ.λ * ħ) / 2) * (ψ.m_l * ψ.m_s)
+#+end_src
+
+#+begin_src julia
+# Calculate the L_+S_- ladder operator
+L_up_S_down_prefactor(ψ:Wavefunction) =
+    (ψ.λ * ħ^2) / 2 * ((ψ.l^2 + l - (3 * ψ.m_l)) * (0.5^2 + 0.5 - (3 * ψ.m_s)))^0.5
+#+end_src
+
+#+begin_src julia
+# Calculate the L_-S_+ ladder operator
+L_down_S_up_prefactor(ψ::Wavefunction) =
+    (ψ.λ * ħ^2) / 2 * ((ψ.l^2 + l - ψ.m_l) * (0.5^2 + 0.5 - ψ.m_s))^0.5
+#+end_src
+
+Additionally create \(\Bra{\psi'}\) and enact the operators on \(\Ket{\psi}\). These only need to be defined for \(\hat{L}_+\hat{S}_-\) and \(\hat{L}_-\hat{S}_+\) as \(\hat{L}_z\hat{S}_z\) does not raise or lower the quantum numbers and only serves as a prefactor.
+
+#+begin_src julia
+deepcopy_ψ(ψ::Wavefunction) = deepcopy(ψ)
+#+end_src
+
+#+begin_src julia
+function L_up_S_down_ladder(ψ:Wavefunction)
+    # L_+S_- raises m_l and lowers m_s both by 1
+    if ψ.m_l > l - 1 && m_s == 0.5
+        ψ.m_l += 1
+        ψ.m_s -= 1
+    end
+end
+#+end_src
+
+#+begin_src julia
+function L_down_S_up_ladder(ψ::Wavefunction)
+    # L_-S_+ lowers m_l and raises m_s both by 1
+    if ψ.m_l < -l + 1 && m_s == -0.5
+        ψ.m_l -= 1
+        ψ.m_s += 1
+    end
+end
+#+end_src
+
+### Bra on ket
+Set \(\hat{H}_{ij}\) in accordance with \(\Braket{ \psi_{\ell', m_{\ell}', m_s'} | \psi_{\ell, m_{\ell}, m_s} } = \delta_{\ell'\ell} \delta_{m_{\ell}'m_{\ell}} \delta_{m_s'm_s}\)
+
+#+begin_src julia
+function ψOψ(ψ_prime::Wavefunction, ψ::Wavefunction, operator::String)
+    if operator == "L_z_S_z"
+        if ψ_prime.l == ψ.l && ψ_prime.m_l == ψ.m_l && ψ_prime.s == ψ.s
+            return L_z_S_z_prefactor(ψ)
+        else
+            return 0
+        end
+
+    elseif operator == "L_up_S_down"
+        if ψ_prime.l == ψ.l && ψ_prime.m_l == ψ.m_l + 1 && ψ_prime.s == ψ.s - 1
+            return L_up_S_down_prefactor(ψ)
+        else
+            return 0
+        end
+
+    elseif operator == "L_down_S_up"
+        if ψ_prime.l == ψ.l && ψ_prime.m_l == ψ.m_l - 1 && ψ_prime.s == ψ.s + 1
+            return 0
+        else
+            return L_down_S_up_prefactor(ψ)
+        end
+    else
+        throw(
+            ArgumentError(
+                "Operator must be one of 'L_z_S_z', 'L_up_S_down', 'L_down_S_up'",
+            ),
+        )
+    end
+end
+#+end_src
+
+## Setup Full Hamiltonian Matrix
+Iterate over all quantum numbers to create \(\hat{H}\) for \(n=2\)
