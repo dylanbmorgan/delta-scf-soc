@@ -5,8 +5,8 @@
 #+property: header-args:bash :session sh
 #+property: header-args:julia :session jl :results silent
 
-## Setup
-### Imports
+* Setup
+** Imports
 #+begin_src julia
 using DrWatson
 #+end_src
@@ -19,12 +19,12 @@ using DrWatson
 using LinearAlgebra, Plots
 #+end_src
 
-### Constants
+** Constants
 #+begin_src julia
 const ħ = 1.0545718e-34
 #+end_src
 
-### Types
+** Types
 #+begin_src julia
 struct GreaterThan{T<:Real}
     x::T
@@ -68,7 +68,7 @@ struct BetweenPlusMinus{T<:Real}
 end
 #+end_src
 
-## Model System
+* Model System
 We can set up a spin-orbit coupling Hamiltonian for a model system, where the wavefunction is represented in a basis of the \(\ell\), \(m_{\ell}\), and \(m_s\) quantum numbers for a given \(n\).
 
 #+name: model-H
@@ -78,7 +78,7 @@ We can set up a spin-orbit coupling Hamiltonian for a model system, where the wa
 
 Where \(\hat{L}\) is the orbital angular momentum operator, \(\hat{S}\) is the spin operator, and \(\lambda\) is the spin-orbit coupling strength, which is dependent on the atomic number of the elements in the solid.
 
-### Wavefunction
+** Wavefunction
 Setup the wavefunction as a ~mutable struct~ so we can enact the ladder operators on the wavefunction object later
 #+begin_src julia
 mutable struct Wavefunction
@@ -110,8 +110,8 @@ mutable struct Wavefunction
 end
 #+end_src
 
-## Define the Operator
-### Uncertainty Principle
+* Define the Operator
+** Uncertainty Principle
 The uncertainty principle states that when two observable operators do not commute, they cannot be measured simultaneously, and the more accurately that one is known, the less accurately the other can be known. For angular momentum, this is given by the Robertson-Schrödinger relation
 
 \begin{equation}
@@ -120,7 +120,7 @@ The uncertainty principle states that when two observable operators do not commu
 
 where \(\sigma_J\) is the standard deviation in the measured values of \(J\). \(J\) can also be replaced by \(L\) or \(S\), and \(x, y, z\) can be rearranged in any order. However it is still possible to measure \(J^2\) and any one component of \(J\). These values are characterised by \(\ell\) and \(m\).
 
-### Derivation
+** Derivation
 In order to calculate [[model]], we need to apply the operators to the ket and work out the prefactors.
 
 #+name: angular-spin-relation
@@ -171,8 +171,8 @@ where
     \Braket{ \psi_{\ell', m_{\ell}', m_s'} | \psi_{\ell, m_{\ell}, m_s} } = \delta_{\ell' \ell} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
 \end{equation}
 
-## Solve the Eigenvalue Problem
-### Operator(s) on Ket
+* Solve the Eigenvalue Problem
+** Operator(s) on Ket
 Define how the Hamiltonian acts on the wavefunction in the ket
 
 #+begin_src julia
@@ -182,7 +182,7 @@ L_z_S_z_prefactor(ψ::Wavefunction) = ((ψ.λ * ħ) / 2) * (ψ.m_l * ψ.m_s)
 
 #+begin_src julia
 # Calculate the L_+S_- ladder operator
-L_up_S_down_prefactor(ψ:Wavefunction) =
+L_up_S_down_prefactor(ψ::Wavefunction) =
     (ψ.λ * ħ^2) / 2 * ((ψ.l^2 + l - (3 * ψ.m_l)) * (0.5^2 + 0.5 - (3 * ψ.m_s)))^0.5
 #+end_src
 
@@ -195,30 +195,32 @@ L_down_S_up_prefactor(ψ::Wavefunction) =
 Additionally create \(\Bra{\psi'}\) and enact the operators on \(\Ket{\psi}\). These only need to be defined for \(\hat{L}_+\hat{S}_-\) and \(\hat{L}_-\hat{S}_+\) as \(\hat{L}_z\hat{S}_z\) does not raise or lower the quantum numbers and only serves as a prefactor.
 
 #+begin_src julia
-deepcopy_ψ(ψ::Wavefunction) = deepcopy(ψ)
-#+end_src
-
-#+begin_src julia
-function L_up_S_down_ladder(ψ:Wavefunction)
+function L_up_S_down_ladder!(ψ::Wavefunction)
     # L_+S_- raises m_l and lowers m_s both by 1
     if ψ.m_l > l - 1 && m_s == 0.5
         ψ.m_l += 1
         ψ.m_s -= 1
+        return ψ
+    else
+        return 0
     end
 end
 #+end_src
 
 #+begin_src julia
-function L_down_S_up_ladder(ψ::Wavefunction)
+function L_down_S_up_ladder!(ψ::Wavefunction)
     # L_-S_+ lowers m_l and raises m_s both by 1
     if ψ.m_l < -l + 1 && m_s == -0.5
         ψ.m_l -= 1
         ψ.m_s += 1
+        return ψ
+    else
+        return 0
     end
 end
 #+end_src
 
-### Bra on ket
+** Bra on ket
 Set \(\hat{H}_{ij}\) in accordance with \(\Braket{ \psi_{\ell', m_{\ell}', m_s'} | \psi_{\ell, m_{\ell}, m_s} } = \delta_{\ell'\ell} \delta_{m_{\ell}'m_{\ell}} \delta_{m_s'm_s}\)
 
 #+begin_src julia
@@ -253,5 +255,64 @@ function ψOψ(ψ_prime::Wavefunction, ψ::Wavefunction, operator::String)
 end
 #+end_src
 
-## Setup Full Hamiltonian Matrix
+* Setup Full Hamiltonian Matrix
 Iterate over all quantum numbers to create \(\hat{H}\) for \(n=2\)
+
+#+begin_src julia
+\lambda = [1]
+#+end_src
+
+#+begin_src julia
+begin
+    n = 2
+    l = collect(Int8, 0:n-1)
+    m_l = collect(Int8, -maximum(l):maximum(l))
+    m_s = Float16[-0.5, 0.5]
+end
+#+end_src
+
+#+begin_src julia
+function construct_full_H(
+    lambda::Vector{Float64},
+    n::Int8
+    azimuthal::Vector{Int8},
+    magnetic::Vector{Int8},
+    spin::Vector{Float16},
+)
+    # TODO Change psi to be a vector of all possible wavefunctions
+    # Something like this
+    Ψ = Vector{Wavefunction}(undef, length(azimuthal) * length(magnetic) * length(spin))
+
+    # Construct ψ
+    for l in azimuthal
+        for m_l in magnetic
+            for m_s in spin
+                ψ = Wavefunction(λ, n, l, m_l, m_s)
+                Ψ[l * m_l * m_s] = ψ
+            end
+        end
+    end
+
+    # TODO Construct ψ_prime
+
+    # TODO Construct the Hamiltonian matrix
+    # ψ_prime = deepcopy(ψ)
+
+    # # Calculate prefactor for L_zS_z
+    # term_1 = ψOψ(ψ_prime, ψ, "L_z_S_z")
+
+    # # L_+S_- ladder
+    # ψ_2 = deepcopy(ψ)
+    # L_up_S_down_ladder!(ψ_2)
+    # # L_+S_- prefactor
+    # term_2 = ψOψ(ψ_prime, ψ_2, "L_up_S_down")
+
+    # # L_-S_+ ladder
+    # ψ_3 = deepcopy(ψ)
+    # L_down_S_up_ladder!(ψ_3)
+    # # L_-S_+ prefactor
+    # term_3 = ψOψ(ψ_prime, ψ_3, "L_down_S_up")
+
+    # TODO Iterate over values of lambda
+end
+#+end_src
