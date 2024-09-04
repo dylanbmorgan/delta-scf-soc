@@ -171,7 +171,7 @@ where
     \Braket{ \psi_{\ell', m_{\ell}', m_s'} | \psi_{\ell, m_{\ell}, m_s} } = \delta_{\ell' \ell} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
 \end{equation}
 
-* Solve the Eigenvalue Problem
+* Setup the Eigenvalue Problem
 ** Operator(s) on Ket
 Define how the Hamiltonian acts on the wavefunction in the ket
 
@@ -255,7 +255,8 @@ function ψOψ(ψ_prime::Wavefunction, ψ::Wavefunction, operator::String)
 end
 #+end_src
 
-* Setup Full Hamiltonian Matrix
+* Solve the Eigenvalue Problem
+** Setup the Hamiltonian
 Iterate over all quantum numbers to create \(\hat{H}\) for \(n=2\)
 
 #+begin_src julia
@@ -274,45 +275,66 @@ end
 #+begin_src julia
 function construct_full_H(
     lambda::Vector{Float64},
-    n::Int8
+    n::Int8,
     azimuthal::Vector{Int8},
     magnetic::Vector{Int8},
     spin::Vector{Float16},
 )
-    # TODO Change psi to be a vector of all possible wavefunctions
-    # Something like this
-    Ψ = Vector{Wavefunction}(undef, length(azimuthal) * length(magnetic) * length(spin))
+    # Setup Ψ as a vector of all possible wavefunctions
+    Ψ = Vector{Wavefunction}(nothing, length(azimuthal) * length(magnetic) * length(spin))
+    Ψ_prime = deepcopy(Ψ)
 
-    # Construct ψ
-    for l in azimuthal
-        for m_l in magnetic
-            for m_s in spin
-                ψ = Wavefunction(λ, n, l, m_l, m_s)
-                Ψ[l * m_l * m_s] = ψ
-            end
+    # Construct Ψ
+    for l = 1:length(azimuthal), m_l = 1:length(magnetic), m_s = 1:length(spin)
+        ψ = Wavefunction(n, azimuthal[l], magnetic[m_l], spin[m_s])
+        Ψ[l+m_l+m_s-2] = ψ
+    end
+
+    # Construct Ψ_prime
+    Ψ_prime = deepcopy(Ψ)
+
+    H = Array{Float64,2}(nothing, length(Ψ_prime), length(Ψ))
+
+    # Construct the Hamiltonian matrix
+    for ψ = 1:length(Ψ)
+        for ψ_prime = 1:length(Ψ_prime)
+            # Calculate prefactor for L_zS_z
+            term_1 = ψOψ(Ψ_prime[ψ_prime], Ψ[ψ], "L_z_S_z")
+
+            # L_+S_- ladder
+            ψ_2 = deepcopy(Ψ[ψ])
+            L_up_S_down_ladder!(ψ_2)
+            # L_+S_- prefactor
+            term_2 = ψOψ(Ψ_prime[ψ_prime], ψ_2, "L_up_S_down")
+
+            # L_-S_+ ladder
+            ψ_3 = deepcopy(ψ)
+            L_down_S_up_ladder!(ψ_3)
+            # L_-S_+ prefactor
+            term_3 = ψOψ(ψ_prime, ψ_3, "L_down_S_up")
+
+            H[ψ_prime, ψ] = λ * term_1 + λ * term_2 + λ * term_3
         end
     end
 
-    # TODO Construct ψ_prime
+    return H
+end
+#+end_src
 
-    # TODO Construct the Hamiltonian matrix
-    # ψ_prime = deepcopy(ψ)
+** Diagonalise the Hamiltonian
 
-    # # Calculate prefactor for L_zS_z
-    # term_1 = ψOψ(ψ_prime, ψ, "L_z_S_z")
+#+begin_src julia
+function diagonalise_H(H::Array{Float64,2})
+    # Find the eigenvalues of the Hamiltonian
+    evs = eigvals(H)
 
-    # # L_+S_- ladder
-    # ψ_2 = deepcopy(ψ)
-    # L_up_S_down_ladder!(ψ_2)
-    # # L_+S_- prefactor
-    # term_2 = ψOψ(ψ_prime, ψ_2, "L_up_S_down")
+    # Get the diagonal matrix of eigenvalues
+    D = Diagonal(evs)
 
-    # # L_-S_+ ladder
-    # ψ_3 = deepcopy(ψ)
-    # L_down_S_up_ladder!(ψ_3)
-    # # L_-S_+ prefactor
-    # term_3 = ψOψ(ψ_prime, ψ_3, "L_down_S_up")
+    # Get the eigenvectors
+    P = eigvecs(H)
 
-    # TODO Iterate over values of lambda
+    # Return the diagonalised Hamiltonian
+    return P * D * inv(P)
 end
 #+end_src
