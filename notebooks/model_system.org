@@ -1,21 +1,13 @@
 #+title: Model System
 #+startup: latexpreview inlineimages
 #+latex_header: \usepackage{braket}
-#+property: header-args :async yes
-#+property: header-args:bash :session sh
 #+property: header-args:julia :session jl :results silent
 
 * Setup
 ** Imports
 #+begin_src julia
 using DrWatson
-#+end_src
-
-#+begin_src julia
-@quickactivate "DeltaSCFSOC"
-#+end_src
-
-#+begin_src julia
+quickactivate("$(pwd())../")
 using LinearAlgebra, Plots
 #+end_src
 
@@ -26,26 +18,60 @@ const ħ = 1.0545718e-34
 
 ** Types
 #+begin_src julia
+"""
+    GreaterThan(x::T, min::T) where {T<:Real}
+
+Define a type that ensures `x` is greater than `min`
+
+# Examples
+```jldoctest
+julia> struct Wavefunction
+           n::GreaterThan{Int8}
+
+           function Wavefunction(principal::Int8)
+               n = GreaterThan(principal, 0)
+           end
+        end
+```
+"""
 struct GreaterThan{T<:Real}
     x::T
-    min_value::T
+    min::T
 
-    function greater_than(x::T, min_value::T) where {T<:Real}
-        if x < min_value
-            throw(DomainError("$x must be >= $min_value"))
+    function GreaterThan(x::T, min::T) where {T<:Real}
+        if x < min
+            throw(DomainError("$x must be >= $min"))
         end
-        new{T}(x, min_value)
+        new{T}(x, min)
     end
 end
 #+end_src
 
 #+begin_src julia
+"""
+    Between(x::T, min::T, max::T) where {T<:Real}
+
+Define a type that ensures `x` is between the `min` and `max` values
+
+# Examples
+```jldoctest
+julia> struct Wavefunction
+           n::Int8
+           l::Between{Int8}
+
+           function Wavefunction(principal::Int8, azimuthal::Int8)
+               n = principal
+               l = Between(azimuthal, 0, n - 1)
+           end
+       end
+```
+"""
 struct Between{T<:Real}
     x::T
     min::T
     max::T
 
-    function between(x::T, min::T, max::T) where {T<:Real}
+    function Between(x::T, min::T, max::T) where {T<:Real}
         if x < min || x > max
             throw(DomainError("$x must be in [$min, $max]"))
         end
@@ -55,11 +81,29 @@ end
 #+end_src
 
 #+begin_src julia
+"""
+    BetweenPlusMinus(x::T, origin::T) where {T<:Real}
+
+Define a type that ensures `x` is between ±`origin`
+
+# Examples
+```jldoctest
+julia> struct Wavefunction
+           l::Int8
+           m_l::BetweenPlusMinus{Int8}
+
+           function Wavefunction(aizmuthal::Int8, magnetic::Int8)
+               l = principal
+               m_l = BetweenPlusMinus(magnetic, l)
+           end
+       end
+```
+"""
 struct BetweenPlusMinus{T<:Real}
     x::T
     origin::T
 
-    function between_plus_minus(x::T, origin::T) where {T<:Real}
+    function BetweenPlusMinus(x::T, origin::T) where {T<:Real}
         if x < -origin || x > origin
             throw(DomainError("$x must be in [-$origin, $origin]"))
         end
@@ -80,32 +124,47 @@ Where \(\hat{L}\) is the orbital angular momentum operator, \(\hat{S}\) is the s
 
 ** Wavefunction
 Setup the wavefunction as a ~mutable struct~ so we can enact the ladder operators on the wavefunction object later
-#+begin_src julia
-mutable struct Wavefunction
-    λ::Float64
-    n::GreaterThan{Int}
-    l::Between{Int}
-    m_l::BetweenPlusMinus{Int}
-    m_s::Float16
 
-    function wavefunction(
-        lambda::Float64,
+*** TODO Solve Initialising the wavefunction
+If the wavefunction is initialised with src_julia{Ψ = [Wavefunction(n, l, m_l, m_s) for l in azimuthal, m_l in magnetic, m_s in spin]}, the following will fail because it will try to construct an instance where ~m_l~ < ~l~.
+
+#+begin_src julia
+"""
+    Wavefunction(
         principal::Int,
         azimuth::Int,
         magnetic::Int,
-        spin::Float16,
+        spin::AbstractFloat,
     )
 
-        if spin != 0.5 || spin != -0.5
+Define a wavefunction for a given n in a basis of \$l\$, \$m_l\$, and \$m_s\$
+
+# Examples
+```jldoctest
+julia> ψ = Wavefunction(2, 1, -1, -0.5)
+```
+"""
+mutable struct Wavefunction
+    n::GreaterThan{Int}
+    l::Between{Int}
+    m_l::BetweenPlusMinus{Int}
+    m_s::AbstractFloat
+
+    function Wavefunction(
+        n::Int,
+        l::Int,
+        m_l::Int,
+        m_s::AbstractFloat,
+    )
+        if m_s != 0.5 && m_s != -0.5
             throw(ArgumentError("Spin must be either 0.5 or -0.5"))
         end
 
-        λ = lambda
-        n = greater_than(principal, 0)
-        l = between(azimuth, 0, n - 1)
-        m_l = between_plus_minus(magnetic_val, azimuth_val)
-        m_s = spin
-        new(λ, n, l, m_l, m_s)
+        principal = GreaterThan(n, 0)
+        azimuthal = Between(l, 0, n - 1)
+        magnetic = BetweenPlusMinus(m_l, l)
+        spin = m_s
+        new(principal, azimuthal, magnetic, spin)
     end
 end
 #+end_src
@@ -176,19 +235,43 @@ where
 Define how the Hamiltonian acts on the wavefunction in the ket
 
 #+begin_src julia
-# Calculate the z component of the angular momentum and spin operators
-L_z_S_z_prefactor(ψ::Wavefunction) = ((ψ.λ * ħ) / 2) * (ψ.m_l * ψ.m_s)
+@doc raw"""
+    L_z_S_z_prefactor(ψ::Wavefunction, λ::Float64)
+
+Calculate the z angular momentum spin operator prefactor
+
+```math
+\frac{\lambda \hbar}{2} (m_l \cdot m_s) | \psi_{\ell, m_{\ell}, m_s} \rangle
+```
+"""
+L_z_S_z_prefactor(ψ::Wavefunction, λ::Float64) = ((λ * ħ) / 2) * (ψ.m_l * ψ.m_s)
 #+end_src
 
 #+begin_src julia
-# Calculate the L_+S_- ladder operator
-L_up_S_down_prefactor(ψ::Wavefunction) =
-    (ψ.λ * ħ^2) / 2 * ((ψ.l^2 + l - (3 * ψ.m_l)) * (0.5^2 + 0.5 - (3 * ψ.m_s)))^0.5
+@doc raw"""
+    l_up_s_down_prefactor(ψ::wavefunction, λ::float64)
+
+Calculate the L_+S_- operator prefactor.
+
+```math
+\frac{\lambda \hbar^2}{2} \left[ (\ell^2 + \ell - 3m_{\ell})(s^2 + s - 3m_s) \right]^{\frac{1}{2}} | \psi_{\ell, m_{\ell} + 1, m_s - 1} \rangle
+```
+"""
+L_up_S_down_prefactor(ψ::Wavefunction, λ::Float64) =
+    (λ * ħ^2) / 2 * ((ψ.l^2 + l - (3 * ψ.m_l)) * (0.5^2 + 0.5 - (3 * ψ.m_s)))^0.5
 #+end_src
 
 #+begin_src julia
-# Calculate the L_-S_+ ladder operator
-L_down_S_up_prefactor(ψ::Wavefunction) =
+@doc raw"""
+    L_down_S_up_prefactor(ψ::Wavefunction, λ::Float64)
+
+Calculate the L_-S_+ operator prefactor.
+
+```math
+\frac{\lambda \hbar^2}{2} \left[ (\ell^2 + \ell - m_{\ell})(s^2 + s - m_s) \right]^{\frac{1}{2}} | \psi_{\ell, m_{\ell} - 1, m_s + 1} \rangle
+```
+"""
+L_down_S_up_prefactor(ψ::Wavefunction, λ::Float64) =
     (ψ.λ * ħ^2) / 2 * ((ψ.l^2 + l - ψ.m_l) * (0.5^2 + 0.5 - ψ.m_s))^0.5
 #+end_src
 
@@ -255,12 +338,33 @@ function ψOψ(ψ_prime::Wavefunction, ψ::Wavefunction, operator::String)
 end
 #+end_src
 
+** Operators as Matrices
+The above operators can also be represented as matrices
+
+#+begin_src julia
+function construct_operator_matrices(Ψ::Wavefunction, Ψ_prime::Wavefunction)
+
+    # Get the total number of states
+    num_states = length(Ψ)
+
+    # Check that the number of states in Ψ and Ψ_prime are the same
+    @assert num_states == length(Ψ_prime)
+
+    # Define matrix operators for L_z, S_z, L_up, L_down, S_up, S_down
+    L_z_S_z = Array{Float64}(undef, num_states, num_states)
+    L_up_S_down = deepcopy(L_z_S_z)
+    L_down_S_up = deepcopy(L_z_S_Z)
+
+    # Set the matrix elements of the operators
+end
+#+end_src
+
 * Solve the Eigenvalue Problem
 ** Setup the Hamiltonian
 Iterate over all quantum numbers to create \(\hat{H}\) for \(n=2\)
 
 #+begin_src julia
-\lambda = [1]
+λ = [1]
 #+end_src
 
 #+begin_src julia
@@ -281,23 +385,17 @@ function construct_full_H(
     spin::Vector{Float16},
 )
     # Setup Ψ as a vector of all possible wavefunctions
-    Ψ = Vector{Wavefunction}(nothing, length(azimuthal) * length(magnetic) * length(spin))
-    Ψ_prime = deepcopy(Ψ)
-
-    # Construct Ψ
-    for l = 1:length(azimuthal), m_l = 1:length(magnetic), m_s = 1:length(spin)
-        ψ = Wavefunction(n, azimuthal[l], magnetic[m_l], spin[m_s])
-        Ψ[l+m_l+m_s-2] = ψ
-    end
+    Ψ = [Wavefunction(n, l, m_l, m_s) for l in azimuthal, m_l in magnetic, m_s in spin]
 
     # Construct Ψ_prime
     Ψ_prime = deepcopy(Ψ)
 
+    # Construct the Hamiltonian matrix
     H = Array{Float64,2}(nothing, length(Ψ_prime), length(Ψ))
 
     # Construct the Hamiltonian matrix
-    for ψ = 1:length(Ψ)
-        for ψ_prime = 1:length(Ψ_prime)
+    for ψ in eachindex(Ψ)
+        for ψ_prime in eachindex(Ψ_prime)
             # Calculate prefactor for L_zS_z
             term_1 = ψOψ(Ψ_prime[ψ_prime], Ψ[ψ], "L_z_S_z")
 
@@ -313,28 +411,32 @@ function construct_full_H(
             # L_-S_+ prefactor
             term_3 = ψOψ(ψ_prime, ψ_3, "L_down_S_up")
 
-            H[ψ_prime, ψ] = λ * term_1 + λ * term_2 + λ * term_3
+            H[ψ_prime, ψ] = sum(λ .* [term_1, term_2, term_3])
         end
     end
 
     return H
 end
+
+H = construct_full_H(m, l, m_l, m_s)
 #+end_src
 
 ** Diagonalise the Hamiltonian
-
 #+begin_src julia
 function diagonalise_H(H::Array{Float64,2})
-    # Find the eigenvalues of the Hamiltonian
-    evs = eigvals(H)
+    # Find the eigenvalues and eigenvectors of the Hamiltonian
+    eigen = eigen(H)
 
     # Get the diagonal matrix of eigenvalues
-    D = Diagonal(evs)
+    D = Diagonal(eigen.values)
 
-    # Get the eigenvectors
-    P = eigvecs(H)
+    return D
 
-    # Return the diagonalised Hamiltonian
-    return P * D * inv(P)
+    # Check that the diagonal Hamiltonian is within numerical error of D
+    # P = eigen.vectors
+    # @assert norm(H - (P * D * inv(P))) < 1e-10
+
 end
+
+H_d = diagonalise_H(H)
 #+end_src
