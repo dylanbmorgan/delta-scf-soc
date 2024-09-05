@@ -16,102 +16,6 @@ using LinearAlgebra, Plots
 const ħ = 1.0545718e-34
 #+end_src
 
-** Types
-#+begin_src julia
-"""
-    GreaterThan(x::T, min::T) where {T<:Real}
-
-Define a type that ensures `x` is greater than `min`
-
-# Examples
-```jldoctest
-julia> struct Wavefunction
-           n::GreaterThan{Int8}
-
-           function Wavefunction(principal::Int8)
-               n = GreaterThan(principal, 0)
-           end
-        end
-```
-"""
-struct GreaterThan{T<:Real}
-    x::T
-    min::T
-
-    function GreaterThan(x::T, min::T) where {T<:Real}
-        if x < min
-            throw(DomainError("$x must be >= $min"))
-        end
-        new{T}(x, min)
-    end
-end
-#+end_src
-
-#+begin_src julia
-"""
-    Between(x::T, min::T, max::T) where {T<:Real}
-
-Define a type that ensures `x` is between the `min` and `max` values
-
-# Examples
-```jldoctest
-julia> struct Wavefunction
-           n::Int8
-           l::Between{Int8}
-
-           function Wavefunction(principal::Int8, azimuthal::Int8)
-               n = principal
-               l = Between(azimuthal, 0, n - 1)
-           end
-       end
-```
-"""
-struct Between{T<:Real}
-    x::T
-    min::T
-    max::T
-
-    function Between(x::T, min::T, max::T) where {T<:Real}
-        if x < min || x > max
-            throw(DomainError("$x must be in [$min, $max]"))
-        end
-        new{T}(x, min, max)
-    end
-end
-#+end_src
-
-#+begin_src julia
-"""
-    BetweenPlusMinus(x::T, origin::T) where {T<:Real}
-
-Define a type that ensures `x` is between ±`origin`
-
-# Examples
-```jldoctest
-julia> struct Wavefunction
-           l::Int8
-           m_l::BetweenPlusMinus{Int8}
-
-           function Wavefunction(aizmuthal::Int8, magnetic::Int8)
-               l = principal
-               m_l = BetweenPlusMinus(magnetic, l)
-           end
-       end
-```
-"""
-struct BetweenPlusMinus{T<:Real}
-    x::T
-    origin::T
-
-    function BetweenPlusMinus(x::T, origin::T) where {T<:Real}
-        if x < -origin || x > origin
-            throw(DomainError("$x must be in [-$origin, $origin]"))
-        end
-        new{T}(x, origin)
-    end
-end
-#+end_src
-
 * Model System
 We can set up a spin-orbit coupling Hamiltonian for a model system, where the wavefunction is represented in a basis of the \(\ell\), \(m_{\ell}\), and \(m_s\) quantum numbers for a given \(n\).
 
@@ -122,49 +26,62 @@ We can set up a spin-orbit coupling Hamiltonian for a model system, where the wa
 
 Where \(\hat{L}\) is the orbital angular momentum operator, \(\hat{S}\) is the spin operator, and \(\lambda\) is the spin-orbit coupling strength, which is dependent on the atomic number of the elements in the solid.
 
-** Wavefunction
+** TODO Wavefunction
+- Setup the Wavefunction to be complex rather than vectors of ints/floats
+
 Setup the wavefunction as a ~mutable struct~ so we can enact the ladder operators on the wavefunction object later
 
-*** TODO Solve Initialising the wavefunction
-If the wavefunction is initialised with src_julia{Ψ = [Wavefunction(n, l, m_l, m_s) for l in azimuthal, m_l in magnetic, m_s in spin]}, the following will fail because it will try to construct an instance where ~m_l~ < ~l~.
-
 #+begin_src julia
-"""
-    Wavefunction(
-        principal::Int,
-        azimuth::Int,
-        magnetic::Int,
-        spin::AbstractFloat,
-    )
+@doc raw"""
+    Wavefunction(n::Int64)
 
-Define a wavefunction for a given n in a basis of \$l\$, \$m_l\$, and \$m_s\$
+Define a wavefunction for a given n in a basis of $l$, $m_l$, and $m_s$
+
+The length of the wavefunction vector is given by
+```math
+\sum_{n=1}^{n} \sum_{l=0}^{n-1} 2(2l + 1)
+```
 
 # Examples
 ```jldoctest
-julia> ψ = Wavefunction(2, 1, -1, -0.5)
+julia> Ψ = Wavefunction(2)
 ```
+
 """
 mutable struct Wavefunction
-    n::GreaterThan{Int}
-    l::Between{Int}
-    m_l::BetweenPlusMinus{Int}
-    m_s::AbstractFloat
+    Ψ::Vector{Tuple{Int64,Int64,Float64}}
+    l::Vector{Int64}
+    m_l::Vector{Int64}
+    m_s::Vector{Float64}
 
-    function Wavefunction(
-        n::Int,
-        l::Int,
-        m_l::Int,
-        m_s::AbstractFloat,
-    )
-        if m_s != 0.5 && m_s != -0.5
-            throw(ArgumentError("Spin must be either 0.5 or -0.5"))
+    function Wavefunction(n::Int64)
+        # Ensure n is greater than 0
+        if n < 0
+            throw(ArgumentError("n must be ∈ ℕ₀"))
         end
 
-        principal = GreaterThan(n, 0)
-        azimuthal = Between(l, 0, n - 1)
-        magnetic = BetweenPlusMinus(m_l, l)
-        spin = m_s
-        new(principal, azimuthal, magnetic, spin)
+        # Calculate the total number of combinations
+        len_Ψ = sum((2 * l + 1) * 2 for l = 0:n-1)
+
+        # Create a matrix for all possible values of quantum numbers
+        Ψ = Vector{Tuple{Int64,Int64,Float64}}(undef, len_Ψ)
+
+        idx = 1
+        for l = 0:n-1
+            for m_l = -l:l
+                for m_s = -0.5:0.5
+                    Ψ[idx] = (l, m_l, m_s)
+                    idx += 1
+                end
+            end
+        end
+
+        # Save vectors of the quantum numbers
+        l = [Ψ[i][1] for i = 1:len_Ψ]
+        m_l = [Ψ[i][2] for i = 1:len_Ψ]
+        m_s = [Ψ[i][3] for i = 1:len_Ψ]
+
+        new(Ψ, l, m_l, m_s)
     end
 end
 #+end_src
@@ -236,7 +153,7 @@ Define how the Hamiltonian acts on the wavefunction in the ket
 
 #+begin_src julia
 @doc raw"""
-    L_z_S_z_prefactor(ψ::Wavefunction, λ::Float64)
+    Lz_Sz_prefactor(Ψ::Wavefunction, λ::Float64)
 
 Calculate the z angular momentum spin operator prefactor
 
@@ -244,12 +161,12 @@ Calculate the z angular momentum spin operator prefactor
 \frac{\lambda \hbar}{2} (m_l \cdot m_s) | \psi_{\ell, m_{\ell}, m_s} \rangle
 ```
 """
-L_z_S_z_prefactor(ψ::Wavefunction, λ::Float64) = ((λ * ħ) / 2) * (ψ.m_l * ψ.m_s)
+Lz_Sz_prefactor(Ψ::Wavefunction, λ::Float64) = ((λ * ħ) / 2) .* (Ψ.m_l .* Ψ.m_s)
 #+end_src
 
 #+begin_src julia
 @doc raw"""
-    l_up_s_down_prefactor(ψ::wavefunction, λ::float64)
+    l_up_s_down_prefactor(ψ::Vector{Wavefunction}, λ::float64)
 
 Calculate the L_+S_- operator prefactor.
 
@@ -257,13 +174,17 @@ Calculate the L_+S_- operator prefactor.
 \frac{\lambda \hbar^2}{2} \left[ (\ell^2 + \ell - 3m_{\ell})(s^2 + s - 3m_s) \right]^{\frac{1}{2}} | \psi_{\ell, m_{\ell} + 1, m_s - 1} \rangle
 ```
 """
-L_up_S_down_prefactor(ψ::Wavefunction, λ::Float64) =
-    (λ * ħ^2) / 2 * ((ψ.l^2 + l - (3 * ψ.m_l)) * (0.5^2 + 0.5 - (3 * ψ.m_s)))^0.5
+# L_up_S_down_prefactor(Ψ::Wavefunction, λ::Float64) = [(λ * ħ^2) / 2 * ((ψ.l^2 + l - (3 * ψ.m_l)) * (0.5^2 + 0.5 - (3 * ψ.m_s)))^0.5 for ψ in Ψ]
+
+function L_up_S_down_prefactor(Ψ::Wavefunction, λ::Float64)
+    ((λ * ħ^2) / 2) .*
+    ((ψ.l .^ 2 .+ ψ_l .- (3 .* ψ.m_l)) .* (m_s .^ 2 .+ m_s .- (3 .* ψ.m_s))) .^ 0.5
+end
 #+end_src
 
 #+begin_src julia
 @doc raw"""
-    L_down_S_up_prefactor(ψ::Wavefunction, λ::Float64)
+    L_down_S_up_prefactor(ψ::Vector{Wavefunction}, λ::Float64)
 
 Calculate the L_-S_+ operator prefactor.
 
@@ -271,91 +192,45 @@ Calculate the L_-S_+ operator prefactor.
 \frac{\lambda \hbar^2}{2} \left[ (\ell^2 + \ell - m_{\ell})(s^2 + s - m_s) \right]^{\frac{1}{2}} | \psi_{\ell, m_{\ell} - 1, m_s + 1} \rangle
 ```
 """
-L_down_S_up_prefactor(ψ::Wavefunction, λ::Float64) =
-    (ψ.λ * ħ^2) / 2 * ((ψ.l^2 + l - ψ.m_l) * (0.5^2 + 0.5 - ψ.m_s))^0.5
-#+end_src
-
-Additionally create \(\Bra{\psi'}\) and enact the operators on \(\Ket{\psi}\). These only need to be defined for \(\hat{L}_+\hat{S}_-\) and \(\hat{L}_-\hat{S}_+\) as \(\hat{L}_z\hat{S}_z\) does not raise or lower the quantum numbers and only serves as a prefactor.
-
-#+begin_src julia
-function L_up_S_down_ladder!(ψ::Wavefunction)
-    # L_+S_- raises m_l and lowers m_s both by 1
-    if ψ.m_l > l - 1 && m_s == 0.5
-        ψ.m_l += 1
-        ψ.m_s -= 1
-        return ψ
-    else
-        return 0
-    end
-end
-#+end_src
-
-#+begin_src julia
-function L_down_S_up_ladder!(ψ::Wavefunction)
-    # L_-S_+ lowers m_l and raises m_s both by 1
-    if ψ.m_l < -l + 1 && m_s == -0.5
-        ψ.m_l -= 1
-        ψ.m_s += 1
-        return ψ
-    else
-        return 0
-    end
+function L_down_S_up_prefactor(ψ::Vector{Wavefunction}, λ::Float64)
+    return [(ψ.λ * ħ^2) / 2 * ((ψ.l^2 + l - ψ.m_l) * (0.5^2 + 0.5 - ψ.m_s))^0.5 for ψ in Ψ]
 end
 #+end_src
 
 ** Bra on ket
-Set \(\hat{H}_{ij}\) in accordance with \(\Braket{ \psi_{\ell', m_{\ell}', m_s'} | \psi_{\ell, m_{\ell}, m_s} } = \delta_{\ell'\ell} \delta_{m_{\ell}'m_{\ell}} \delta_{m_s'm_s}\)
+Additionally create \(\Bra{\psi'}\) and enact the operators on \(\Ket{\psi}\). These only need to be defined for \(\hat{L}_+\hat{S}_-\) and \(\hat{L}_-\hat{S}_+\) as \(\hat{L}_z\hat{S}_z\) does not raise or lower the quantum numbers and only serves as a prefactor.
 
 #+begin_src julia
-function ψOψ(ψ_prime::Wavefunction, ψ::Wavefunction, operator::String)
-    if operator == "L_z_S_z"
-        if ψ_prime.l == ψ.l && ψ_prime.m_l == ψ.m_l && ψ_prime.s == ψ.s
-            return L_z_S_z_prefactor(ψ)
-        else
-            return 0
-        end
+@doc raw"""
+    L_up_S_down_mask(Ψ::Vector{Wavefunction}, Ψ_prime::Vector{Wavefunction})
 
-    elseif operator == "L_up_S_down"
-        if ψ_prime.l == ψ.l && ψ_prime.m_l == ψ.m_l + 1 && ψ_prime.s == ψ.s - 1
-            return L_up_S_down_prefactor(ψ)
-        else
-            return 0
-        end
+Use logical indexing to apply prefactors based on quantum number rules
 
-    elseif operator == "L_down_S_up"
-        if ψ_prime.l == ψ.l && ψ_prime.m_l == ψ.m_l - 1 && ψ_prime.s == ψ.s + 1
-            return 0
-        else
-            return L_down_S_up_prefactor(ψ)
-        end
-    else
-        throw(
-            ArgumentError(
-                "Operator must be one of 'L_z_S_z', 'L_up_S_down', 'L_down_S_up'",
-            ),
-        )
-    end
+```math
+\langle \Psi_{\ell', m_{\ell}', m_s'} | L_+S_- | \Psi_{\ell, m_{\ell}+1, m_s-1} = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
+"""
+function L_up_S_down_mask(Ψ::Vector{Wavefunction}, Ψ_prime::Vector{Wavefunction})
+    return [
+        (ψ_prime.l == ψ.l && ψ_prime.m_l == ψ.m_l + 1 && ψ_prime.m_s == ψ.m_s - 1) for
+        ψ_prime in Ψ, ψ in Ψ
+    ]
 end
 #+end_src
 
-** Operators as Matrices
-The above operators can also be represented as matrices
-
 #+begin_src julia
-function construct_operator_matrices(Ψ::Wavefunction, Ψ_prime::Wavefunction)
+@doc raw"""
+    L_up_S_down_mask(Ψ::Vector{Wavefunction}, Ψ_prime::Vector{Wavefunction})
 
-    # Get the total number of states
-    num_states = length(Ψ)
+Use logical indexing to apply prefactors based on quantum number rules
 
-    # Check that the number of states in Ψ and Ψ_prime are the same
-    @assert num_states == length(Ψ_prime)
-
-    # Define matrix operators for L_z, S_z, L_up, L_down, S_up, S_down
-    L_z_S_z = Array{Float64}(undef, num_states, num_states)
-    L_up_S_down = deepcopy(L_z_S_z)
-    L_down_S_up = deepcopy(L_z_S_Z)
-
-    # Set the matrix elements of the operators
+```math
+\langle \Psi_{\ell', m_{\ell}', m_s'} | L_+S_- | \Psi_{\ell, m_{\ell}-1, m_s+1} = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
+"""
+function L_down_S_up_mask(Ψ::Vector{Wavefunction}, Ψ_prime::Vector{Wavefunction})
+    return [
+        (ψ_prime.l == ψ.l && ψ_prime.m_l == ψ.m_l - 1 && ψ_prime.m_s == ψ.m_s + 1) for
+        ψ_prime in Ψ, ψ in Ψ
+    ]
 end
 #+end_src
 
@@ -367,13 +242,9 @@ Iterate over all quantum numbers to create \(\hat{H}\) for \(n=2\)
 λ = [1]
 #+end_src
 
+Setup rules for the quantum numbers
+
 #+begin_src julia
-begin
-    n = 2
-    l = collect(Int8, 0:n-1)
-    m_l = collect(Int8, -maximum(l):maximum(l))
-    m_s = Float16[-0.5, 0.5]
-end
 #+end_src
 
 #+begin_src julia
@@ -385,7 +256,7 @@ function construct_full_H(
     spin::Vector{Float16},
 )
     # Setup Ψ as a vector of all possible wavefunctions
-    Ψ = [Wavefunction(n, l, m_l, m_s) for l in azimuthal, m_l in magnetic, m_s in spin]
+    Ψ =
 
     # Construct Ψ_prime
     Ψ_prime = deepcopy(Ψ)
