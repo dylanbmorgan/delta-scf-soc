@@ -2,8 +2,15 @@
 #+startup: latexpreview inlineimages
 #+latex_header: \usepackage{braket}
 #+property: header-args:julia :session jl :results silent
+#+property: header-args :tangle ../scripts/DeltaSCFSOC.jl
 
 * Setup
+Start a module here for tangling with the jl file. We will prevent it from running from here as it will error without an ~end~ clause
+
+#+begin_src julia :noeval
+module DeltaSCFSOC
+#+end_src
+
 ** Imports
 #+begin_src julia
 using DrWatson
@@ -26,10 +33,8 @@ We can set up a spin-orbit coupling Hamiltonian for a model system, where the wa
 
 Where \(\hat{L}\) is the orbital angular momentum operator, \(\hat{S}\) is the spin operator, and \(\lambda\) is the spin-orbit coupling strength, which is dependent on the atomic number of the elements in the solid.
 
-** TODO Wavefunction
-- Setup the Wavefunction to be complex rather than vectors of ints/floats
-
-Setup the wavefunction as a ~mutable struct~ so we can enact the ladder operators on the wavefunction object later
+** Wavefunction
+Setup the wavefunction as a ~mutable struct~ using the quantum numbers as a basis. This will create a vector where each element is a state defined by the quantum numbers
 
 #+begin_src julia
 @doc raw"""
@@ -46,13 +51,12 @@ The length of the wavefunction vector is given by
 ```jldoctest
 julia> Ψ = Wavefunction(2)
 ```
-
 """
 mutable struct Wavefunction
-    Ψ::Vector{Tuple{Int64,Int64,Float64}}
-    l::Vector{Int64}
-    m_l::Vector{Int64}
-    m_s::Vector{Float64}
+    Ψ::Vector{Tuple{Int64,Complex{Int64},ComplexF64}}
+    l::Vector{Int16}
+    m_l::Vector{Complex{Int64}}
+    m_s::Vector{ComplexF64}
 
     function Wavefunction(n::Int64)
         # Ensure n is greater than 0
@@ -64,7 +68,7 @@ mutable struct Wavefunction
         len_Ψ = sum((2 * l + 1) * 2 for l = 0:n-1)
 
         # Create a matrix for all possible values of quantum numbers
-        Ψ = Vector{Tuple{Int64,Int64,Float64}}(undef, len_Ψ)
+        Ψ = Vector{Tuple{Int64,Complex{Int64},ComplexF64}}(undef, len_Ψ)
 
         idx = 1
         for l = 0:n-1
@@ -85,6 +89,15 @@ mutable struct Wavefunction
     end
 end
 #+end_src
+
+Now, initialise the wavefunction when $$n=2$$
+
+#+begin_src julia :results replace
+Ψ = Wavefunction(2)
+#+end_src
+
+#+RESULTS:
+: Wavefunction(Tuple{Int64, Complex{Int64}, ComplexF64}[(0, 0 + 0im, -0.5 + 0.0im), (0, 0 + 0im, 0.5 + 0.0im), (1, -1 + 0im, -0.5 + 0.0im), (1, -1 + 0im, 0.5 + 0.0im), (1, 0 + 0im, -0.5 + 0.0im), (1, 0 + 0im, 0.5 + 0.0im), (1, 1 + 0im, -0.5 + 0.0im), (1, 1 + 0im, 0.5 + 0.0im)], Int16[0, 0, 1, 1, 1, 1, 1, 1], Complex{Int64}[0 + 0im, 0 + 0im, -1 + 0im, -1 + 0im, 0 + 0im, 0 + 0im, 1 + 0im, 1 + 0im], ComplexF64[-0.5 + 0.0im, 0.5 + 0.0im, -0.5 + 0.0im, 0.5 + 0.0im, -0.5 + 0.0im, 0.5 + 0.0im, -0.5 + 0.0im, 0.5 + 0.0im])
 
 * Define the Operator
 ** Uncertainty Principle
@@ -153,7 +166,7 @@ Define how the Hamiltonian acts on the wavefunction in the ket
 
 #+begin_src julia
 @doc raw"""
-    Lz_Sz_prefactor(Ψ::Wavefunction, λ::Float64)
+    Lz_Sz_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{ComplexF64}
 
 Calculate the z angular momentum spin operator prefactor
 
@@ -161,12 +174,14 @@ Calculate the z angular momentum spin operator prefactor
 \frac{\lambda \hbar}{2} (m_l \cdot m_s) | \psi_{\ell, m_{\ell}, m_s} \rangle
 ```
 """
-Lz_Sz_prefactor(Ψ::Wavefunction, λ::Float64) = ((λ * ħ) / 2) .* (Ψ.m_l .* Ψ.m_s)
+function Lz_Sz_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{ComplexF64}
+    ((λ * ħ) / 2) .* (Ψ.m_l .* Ψ.m_s)
+end
 #+end_src
 
 #+begin_src julia
 @doc raw"""
-    l_up_s_down_prefactor(ψ::Vector{Wavefunction}, λ::float64)
+    l_up_s_down_prefactor(ψ::Wavefunction, λ::float64)
 
 Calculate the L_+S_- operator prefactor.
 
@@ -178,13 +193,13 @@ Calculate the L_+S_- operator prefactor.
 
 function L_up_S_down_prefactor(Ψ::Wavefunction, λ::Float64)
     ((λ * ħ^2) / 2) .*
-    ((ψ.l .^ 2 .+ ψ_l .- (3 .* ψ.m_l)) .* (m_s .^ 2 .+ m_s .- (3 .* ψ.m_s))) .^ 0.5
+    ((Ψ.l .^ 2 .+ Ψ.l .- (3 .* Ψ.m_l)) .* (Ψ.m_s .^ 2 .+ Ψ.m_s .- (3 .* Ψ.m_s))) .^ 0.5
 end
 #+end_src
 
 #+begin_src julia
 @doc raw"""
-    L_down_S_up_prefactor(ψ::Vector{Wavefunction}, λ::Float64)
+    L_down_S_up_prefactor(Ψ::Wavefunction, λ::Float64)
 
 Calculate the L_-S_+ operator prefactor.
 
@@ -192,45 +207,52 @@ Calculate the L_-S_+ operator prefactor.
 \frac{\lambda \hbar^2}{2} \left[ (\ell^2 + \ell - m_{\ell})(s^2 + s - m_s) \right]^{\frac{1}{2}} | \psi_{\ell, m_{\ell} - 1, m_s + 1} \rangle
 ```
 """
-function L_down_S_up_prefactor(ψ::Vector{Wavefunction}, λ::Float64)
-    return [(ψ.λ * ħ^2) / 2 * ((ψ.l^2 + l - ψ.m_l) * (0.5^2 + 0.5 - ψ.m_s))^0.5 for ψ in Ψ]
+function L_down_S_up_prefactor(Ψ::Wavefunction, λ::Float64)
+    ((λ * ħ^2) / 2) .* ((Ψ.l .^ 2 .+ Ψ.l .- Ψ.m_l) .* (Ψ.m_s .^ 2 .+ Ψ.m_s .- Ψ.m_s)) .^ 0.5
 end
 #+end_src
 
 ** Bra on ket
-Additionally create \(\Bra{\psi'}\) and enact the operators on \(\Ket{\psi}\). These only need to be defined for \(\hat{L}_+\hat{S}_-\) and \(\hat{L}_-\hat{S}_+\) as \(\hat{L}_z\hat{S}_z\) does not raise or lower the quantum numbers and only serves as a prefactor.
-
+Additionally create \(\Bra{\psi'}\) and enact the operators on \(\Ket{\psi}\) to calculate the inner product
 #+begin_src julia
 @doc raw"""
-    L_up_S_down_mask(Ψ::Vector{Wavefunction}, Ψ_prime::Vector{Wavefunction})
+    Lz_Sz_kron(Ψ::Wavefunction)
 
-Use logical indexing to apply prefactors based on quantum number rules
+Use logical indexing to apply prefactors based on kroenecker delta for the Lz_Sz operator.
 
 ```math
-\langle \Psi_{\ell', m_{\ell}', m_s'} | L_+S_- | \Psi_{\ell, m_{\ell}+1, m_s-1} = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
+\langle \Psi_{\ell', m_{\ell}', m_s'} | L_zS_z | \Psi_{\ell, m_{\ell}, m_s} = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
 """
-function L_up_S_down_mask(Ψ::Vector{Wavefunction}, Ψ_prime::Vector{Wavefunction})
-    return [
-        (ψ_prime.l == ψ.l && ψ_prime.m_l == ψ.m_l + 1 && ψ_prime.m_s == ψ.m_s - 1) for
-        ψ_prime in Ψ, ψ in Ψ
-    ]
+function Lz_Sz_kron(Ψ::Wavefunction)
+    Ψ.l .== Ψ.l' .&& Ψ.m_l .== Ψ.m_l' .&& Ψ.m_s .== Ψ.m_s'
 end
 #+end_src
 
 #+begin_src julia
 @doc raw"""
-    L_up_S_down_mask(Ψ::Vector{Wavefunction}, Ψ_prime::Vector{Wavefunction})
+    L_up_S_down_kron(Ψ::Wavefunction)
 
-Use logical indexing to apply prefactors based on quantum number rules
+Use logical indexing to apply prefactors based on kroenecker delta for the L+_S- operator.
+
+```math
+\langle \Psi_{\ell', m_{\ell}', m_s'} | L_+S_- | \Psi_{\ell, m_{\ell}+1, m_s-1} = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
+"""
+function L_up_S_down_kron(Ψ::Wavefunction)
+    Ψ.l .== Ψ.l' .&& Ψ.m_l .== Ψ.m_l' .+ 1 .&& Ψ.m_s .== Ψ.m_s' .- 1
+end
+#+end_src
+
+#+begin_src julia
+@doc raw"""
+    L_up_S_down_kron(Ψ::Wavefunction)
+
+Use logical indexing to apply prefactors based on kroenecker delta for the L-_S+ operator.
 
 ```math
 \langle \Psi_{\ell', m_{\ell}', m_s'} | L_+S_- | \Psi_{\ell, m_{\ell}-1, m_s+1} = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
 """
-function L_down_S_up_mask(Ψ::Vector{Wavefunction}, Ψ_prime::Vector{Wavefunction})
-    return [
-        (ψ_prime.l == ψ.l && ψ_prime.m_l == ψ.m_l - 1 && ψ_prime.m_s == ψ.m_s + 1) for
-        ψ_prime in Ψ, ψ in Ψ
-    ]
+function L_down_S_up_kron(Ψ::Wavefunction)
+    Ψ.l .== Ψ.l' .&& Ψ.m_l .== Ψ.m_l' .- 1 .&& Ψ.m_s .== Ψ.m_s' .+ 1
 end
 #+end_src
 
@@ -239,57 +261,25 @@ end
 Iterate over all quantum numbers to create \(\hat{H}\) for \(n=2\)
 
 #+begin_src julia
-λ = [1]
-#+end_src
-
-Setup rules for the quantum numbers
-
-#+begin_src julia
-#+end_src
-
-#+begin_src julia
-function construct_full_H(
-    lambda::Vector{Float64},
-    n::Int8,
-    azimuthal::Vector{Int8},
-    magnetic::Vector{Int8},
-    spin::Vector{Float16},
-)
+function construct_full_H(n::Int, λ::Float64)
     # Setup Ψ as a vector of all possible wavefunctions
-    Ψ =
-
-    # Construct Ψ_prime
-    Ψ_prime = deepcopy(Ψ)
+    Ψ = Wavefunction(n)
 
     # Construct the Hamiltonian matrix
-    H = Array{Float64,2}(nothing, length(Ψ_prime), length(Ψ))
+    H = Array{ComplexF64,2}(undef, length(Ψ), length(Ψ))
 
-    # Construct the Hamiltonian matrix
-    for ψ in eachindex(Ψ)
-        for ψ_prime in eachindex(Ψ_prime)
-            # Calculate prefactor for L_zS_z
-            term_1 = ψOψ(Ψ_prime[ψ_prime], Ψ[ψ], "L_z_S_z")
+    # Compute the Hamiltonian matrix elements based on the prefactors and kroenecker deltas
+    t1 = Lz_Sz_prefactor(Ψ, λ) .* Lz_Sz_kron(Ψ)
+    t2 = L_up_S_down_prefactor(Ψ, λ) .* L_up_S_down_kron(Ψ)
+    t3 = L_down_S_up_prefactor(Ψ, λ) .* L_down_S_up_kron(Ψ)
 
-            # L_+S_- ladder
-            ψ_2 = deepcopy(Ψ[ψ])
-            L_up_S_down_ladder!(ψ_2)
-            # L_+S_- prefactor
-            term_2 = ψOψ(Ψ_prime[ψ_prime], ψ_2, "L_up_S_down")
-
-            # L_-S_+ ladder
-            ψ_3 = deepcopy(ψ)
-            L_down_S_up_ladder!(ψ_3)
-            # L_-S_+ prefactor
-            term_3 = ψOψ(ψ_prime, ψ_3, "L_down_S_up")
-
-            H[ψ_prime, ψ] = sum(λ .* [term_1, term_2, term_3])
-        end
-    end
+    # Assign the array elements
+    H .= t1 .+ t2 .+ t3
 
     return H
 end
 
-H = construct_full_H(m, l, m_l, m_s)
+H = construct_full_H(2, 1.0)
 #+end_src
 
 ** Diagonalise the Hamiltonian
@@ -310,4 +300,11 @@ function diagonalise_H(H::Array{Float64,2})
 end
 
 H_d = diagonalise_H(H)
+#+end_src
+
+* Module Cleanup
+End the module that we started to define in [[setup]]
+
+#+begin_src julia :noeval
+end  # module
 #+end_src
