@@ -58,8 +58,6 @@ mutable struct Wavefunction
     end
 end
 
-Ψ = Wavefunction(2)
-
 @doc raw"""
     Lz_Sz_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{ComplexF64}
 
@@ -74,7 +72,7 @@ function Lz_Sz_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{ComplexF64}
 end
 
 @doc raw"""
-    l_up_s_down_prefactor(ψ::Wavefunction, λ::float64)
+    l_up_s_down_prefactor(ψ::Wavefunction, λ::float64)::Vector{ComplexF64}
 
 Calculate the L_+S_- operator prefactor.
 
@@ -82,15 +80,13 @@ Calculate the L_+S_- operator prefactor.
 \frac{\lambda \hbar^2}{2} \left[ (\ell^2 + \ell - 3m_{\ell})(s^2 + s - 3m_s) \right]^{\frac{1}{2}} | \psi_{\ell, m_{\ell} + 1, m_s - 1} \rangle
 ```
 """
-# L_up_S_down_prefactor(Ψ::Wavefunction, λ::Float64) = [(λ * ħ^2) / 2 * ((ψ.l^2 + l - (3 * ψ.m_l)) * (0.5^2 + 0.5 - (3 * ψ.m_s)))^0.5 for ψ in Ψ]
-
-function L_up_S_down_prefactor(Ψ::Wavefunction, λ::Float64)
+function L_up_S_down_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{ComplexF64}
     ((λ * ħ^2) / 2) .*
     ((Ψ.l .^ 2 .+ Ψ.l .- (3 .* Ψ.m_l)) .* (Ψ.m_s .^ 2 .+ Ψ.m_s .- (3 .* Ψ.m_s))) .^ 0.5
 end
 
 @doc raw"""
-    L_down_S_up_prefactor(Ψ::Wavefunction, λ::Float64)
+    L_down_S_up_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{ComplexF64}
 
 Calculate the L_-S_+ operator prefactor.
 
@@ -98,43 +94,43 @@ Calculate the L_-S_+ operator prefactor.
 \frac{\lambda \hbar^2}{2} \left[ (\ell^2 + \ell - m_{\ell})(s^2 + s - m_s) \right]^{\frac{1}{2}} | \psi_{\ell, m_{\ell} - 1, m_s + 1} \rangle
 ```
 """
-function L_down_S_up_prefactor(Ψ::Wavefunction, λ::Float64)
+function L_down_S_up_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{ComplexF64}
     ((λ * ħ^2) / 2) .* ((Ψ.l .^ 2 .+ Ψ.l .- Ψ.m_l) .* (Ψ.m_s .^ 2 .+ Ψ.m_s .- Ψ.m_s)) .^ 0.5
 end
 
 @doc raw"""
-    Lz_Sz_kron(Ψ::Wavefunction)
+    Lz_Sz_kron(Ψ::Wavefunction)::BitMatrix
 
 Use logical indexing to apply prefactors based on kroenecker delta for the Lz_Sz operator.
 
 ```math
 \langle \Psi_{\ell', m_{\ell}', m_s'} | L_zS_z | \Psi_{\ell, m_{\ell}, m_s} = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
 """
-function Lz_Sz_kron(Ψ::Wavefunction)
+function Lz_Sz_kron(Ψ::Wavefunction)::BitMatrix
     Ψ.l .== Ψ.l' .&& Ψ.m_l .== Ψ.m_l' .&& Ψ.m_s .== Ψ.m_s'
 end
 
 @doc raw"""
-    L_up_S_down_kron(Ψ::Wavefunction)
+    L_up_S_down_kron(Ψ::Wavefunction)::BitMatrix
 
 Use logical indexing to apply prefactors based on kroenecker delta for the L+_S- operator.
 
 ```math
 \langle \Psi_{\ell', m_{\ell}', m_s'} | L_+S_- | \Psi_{\ell, m_{\ell}+1, m_s-1} = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
 """
-function L_up_S_down_kron(Ψ::Wavefunction)
+function L_up_S_down_kron(Ψ::Wavefunction)::BitMatrix
     Ψ.l .== Ψ.l' .&& Ψ.m_l .== Ψ.m_l' .+ 1 .&& Ψ.m_s .== Ψ.m_s' .- 1
 end
 
 @doc raw"""
-    L_up_S_down_kron(Ψ::Wavefunction)
+    L_up_S_down_kron(Ψ::Wavefunction)::BitMatrix
 
 Use logical indexing to apply prefactors based on kroenecker delta for the L-_S+ operator.
 
 ```math
 \langle \Psi_{\ell', m_{\ell}', m_s'} | L_+S_- | \Psi_{\ell, m_{\ell}-1, m_s+1} = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
 """
-function L_down_S_up_kron(Ψ::Wavefunction)
+function L_down_S_up_kron(Ψ::Wavefunction)::BitMatrix
     Ψ.l .== Ψ.l' .&& Ψ.m_l .== Ψ.m_l' .- 1 .&& Ψ.m_s .== Ψ.m_s' .+ 1
 end
 
@@ -143,7 +139,7 @@ function construct_full_H(n::Int, λ::Float64)
     Ψ = Wavefunction(n)
 
     # Construct the Hamiltonian matrix
-    H = Array{ComplexF64,2}(undef, length(Ψ.Ψ), length(Ψ.Ψ))
+    H = Matrix{ComplexF64}(undef, length(Ψ.Ψ), length(Ψ.Ψ))
 
     # Compute the Hamiltonian matrix elements based on the prefactors and kroenecker deltas
     t1 = Lz_Sz_prefactor(Ψ, λ) .* Lz_Sz_kron(Ψ)
@@ -157,5 +153,7 @@ function construct_full_H(n::Int, λ::Float64)
 end
 
 H = construct_full_H(2, 1.0)
+# println(H)
+# return
 
 end  # module
