@@ -94,7 +94,7 @@ end
 
 Now, initialise the wavefunction when $$n=2$$
 
-#+begin_src julia :results replace :tangle no
+#+begin_src julia :results replace :tangle no :exports code
 Ψ = Wavefunction(2)
 #+end_src
 
@@ -219,10 +219,11 @@ Additionally create $$\Bra{\psi'}$$ and enact the operators on $$\Ket{\psi}$$ to
 @doc raw"""
     Lz_Sz_kron(Ψ::Wavefunction)::BitMatrix
 
-Use logical indexing to apply prefactors based on kroenecker delta for the Lz_Sz operator.
+Use logical indexing to apply prefactors based on kronecker delta for the Lz_Sz operator.
 
 ```math
-\langle \Psi_{\ell', m_{\ell}', m_s'} | L_zS_z | \Psi_{\ell, m_{\ell}, m_s} = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
+\langle \Psi_{\ell', m_{\ell}', m_s'} | L_zS_z | \Psi_{\ell, m_{\ell}, m_s} \rangle = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
+```
 """
 function Lz_Sz_kron(Ψ::Wavefunction)::BitMatrix
     Ψ.l .== Ψ.l' .&& Ψ.m_l .== Ψ.m_l' .&& Ψ.m_s .== Ψ.m_s'
@@ -233,10 +234,11 @@ end
 @doc raw"""
     L_up_S_down_kron(Ψ::Wavefunction)::BitMatrix
 
-Use logical indexing to apply prefactors based on kroenecker delta for the L+_S- operator.
+Use logical indexing to apply prefactors based on kronecker delta for the L+_S- operator.
 
 ```math
-\langle \Psi_{\ell', m_{\ell}', m_s'} | L_+S_- | \Psi_{\ell, m_{\ell}+1, m_s-1} = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
+\langle \Psi_{\ell', m_{\ell}', m_s'} | L_+S_- | \Psi_{\ell, m_{\ell}+1, m_s-1} \rangle = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
+```
 """
 function L_up_S_down_kron(Ψ::Wavefunction)::BitMatrix
     Ψ.l .== Ψ.l' .&& Ψ.m_l .== Ψ.m_l' .+ 1 .&& Ψ.m_s .== Ψ.m_s' .- 1
@@ -247,10 +249,11 @@ end
 @doc raw"""
     L_up_S_down_kron(Ψ::Wavefunction)::BitMatrix
 
-Use logical indexing to apply prefactors based on kroenecker delta for the L-_S+ operator.
+Use logical indexing to apply prefactors based on the Kronecker delta for the L-_S+ operator.
 
 ```math
-\langle \Psi_{\ell', m_{\ell}', m_s'} | L_+S_- | \Psi_{\ell, m_{\ell}-1, m_s+1} = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
+\langle \Psi_{\ell', m_{\ell}', m_s'} | L_+S_- | \Psi_{\ell, m_{\ell}-1, m_s+1} \rangle = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
+```
 """
 function L_down_S_up_kron(Ψ::Wavefunction)::BitMatrix
     Ψ.l .== Ψ.l' .&& Ψ.m_l .== Ψ.m_l' .- 1 .&& Ψ.m_s .== Ψ.m_s' .+ 1
@@ -262,72 +265,70 @@ end
 Iterate over all quantum numbers to create $$\hat{H}$$ for $$n=2$$
 
 #+begin_src julia
-function construct_full_H(n::Int, λ::Float64)
-    # Setup Ψ as a vector of all possible wavefunctions
-    Ψ = Wavefunction(n)
+"""
+    construct_full_H(Ψ::Wavefunction, λ::Float64)::Matrix{ComplexF64}
 
+Construct the full Hamiltonian matrix for the given wavefunction and λ
+"""
+function construct_full_H(Ψ::Wavefunction, λ::Float64)::Matrix{ComplexF64}
     # Construct the Hamiltonian matrix
     H = Matrix{ComplexF64}(undef, length(Ψ.Ψ), length(Ψ.Ψ))
 
-    # Compute the Hamiltonian matrix elements based on the prefactors and kroenecker deltas
+    # Compute the Hamiltonian matrix elements based on the prefactors and kronecker deltas
     t1 = Lz_Sz_prefactor(Ψ, λ) .* Lz_Sz_kron(Ψ)
     t2 = L_up_S_down_prefactor(Ψ, λ) .* L_up_S_down_kron(Ψ)
     t3 = L_down_S_up_prefactor(Ψ, λ) .* L_down_S_up_kron(Ψ)
 
     # Assign the array elements
     H .= t1 .+ t2 .+ t3
-
-    return H
-end
-#+end_src
-
-#+begin_src julia :results replace
-H = construct_full_H(2, 1.0)
-# println(H)
-# return
-#+end_src
-
-** Diagonalise the Hamiltonian
-#+begin_src julia :tangle no
-function diagonalise_H(H::Array{Float64,2})
-    # Find the eigenvalues and eigenvectors of the Hamiltonian
-    eigen = eigen(H)
-
-    # Get the diagonal matrix of eigenvalues
-    D = Diagonal(eigen.values)
-
-    return D
-
-    # Check that the diagonal Hamiltonian is within numerical error of D
-    # P = eigen.vectors
-    # @assert norm(H - (P * D * inv(P))) < 1e-10
-
 end
 #+end_src
 
 #+begin_src julia :results replace :tangle no
-H_d = diagonalise_H(H)
+H = construct_full_H(Ψ, 1.0)
+#+end_src
+
+** Diagonalise the Hamiltonian
+#+begin_src julia
+function diagonalise(M::Matrix{ComplexF64})::Diagonal{ComplexF64, Vector{ComplexF64}}
+    # Find the eigenvalues and eigenvectors of the Hamiltonian
+    E = eigen(M)
+
+    # Get the diagonal matrix of eigenvalues
+    Diagonal(E.values)
+
+    # Check that the diagonal Hamiltonian is within numerical error of D
+    # P = eigen.vectors
+    # @assert norm(H - (P * D * inv(P))) < 1e-10
+end
+#+end_src
+
+#+begin_src julia :results replace :tangle no
+diagonalise(H)
 #+end_src
 
 * Changing the Spin-Orbit Coupling Constant
 Calculate and diagonalise the Hamilton whilst varying $$\lambda$$
 
-#+begin_src julia :exports none :tangle no
-function main(n::Int, Λ::Vector{Float64})
-    for λ in Λ
-        H = construct_full_H(λ, n)
-        H_d = diagonlise_H(H)
-    end
-end
+#+begin_src julia :results replace :exports none :tangle no
+Λ = collect(0.1:0.1:2)
+e_vals = Matrix{ComplexF64}(undef, length(Ψ.Ψ), length(Λ))
 
-main(2, )
+for λ in eachindex(Λ)
+    H = construct_full_H(Ψ, Λ[λ])
+    H_d = diagonalise(H)
+    e_vals[:, λ] .= H_d.diag
+end
 #+end_src
 
 * Plot
 Plot the eigenvalues for various values of \lambda
 
-#+begin_src julia :tangle no
-function plot()
+#+begin_src julia :results graphics replace :tangle no
+for i in 1:length(e_vals[:, 1])
+    e_val_i = e_vals[i, :]
+    plot!(e_val_i, collect(1:length(e_val_i)))
+end
 #+end_src
 
 * Module Cleanup

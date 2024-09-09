@@ -101,10 +101,11 @@ end
 @doc raw"""
     Lz_Sz_kron(Ψ::Wavefunction)::BitMatrix
 
-Use logical indexing to apply prefactors based on kroenecker delta for the Lz_Sz operator.
+Use logical indexing to apply prefactors based on kronecker delta for the Lz_Sz operator.
 
 ```math
-\langle \Psi_{\ell', m_{\ell}', m_s'} | L_zS_z | \Psi_{\ell, m_{\ell}, m_s} = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
+\langle \Psi_{\ell', m_{\ell}', m_s'} | L_zS_z | \Psi_{\ell, m_{\ell}, m_s} \rangle = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
+```
 """
 function Lz_Sz_kron(Ψ::Wavefunction)::BitMatrix
     Ψ.l .== Ψ.l' .&& Ψ.m_l .== Ψ.m_l' .&& Ψ.m_s .== Ψ.m_s'
@@ -113,10 +114,11 @@ end
 @doc raw"""
     L_up_S_down_kron(Ψ::Wavefunction)::BitMatrix
 
-Use logical indexing to apply prefactors based on kroenecker delta for the L+_S- operator.
+Use logical indexing to apply prefactors based on kronecker delta for the L+_S- operator.
 
 ```math
-\langle \Psi_{\ell', m_{\ell}', m_s'} | L_+S_- | \Psi_{\ell, m_{\ell}+1, m_s-1} = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
+\langle \Psi_{\ell', m_{\ell}', m_s'} | L_+S_- | \Psi_{\ell, m_{\ell}+1, m_s-1} \rangle = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
+```
 """
 function L_up_S_down_kron(Ψ::Wavefunction)::BitMatrix
     Ψ.l .== Ψ.l' .&& Ψ.m_l .== Ψ.m_l' .+ 1 .&& Ψ.m_s .== Ψ.m_s' .- 1
@@ -125,35 +127,44 @@ end
 @doc raw"""
     L_up_S_down_kron(Ψ::Wavefunction)::BitMatrix
 
-Use logical indexing to apply prefactors based on kroenecker delta for the L-_S+ operator.
+Use logical indexing to apply prefactors based on the Kronecker delta for the L-_S+ operator.
 
 ```math
-\langle \Psi_{\ell', m_{\ell}', m_s'} | L_+S_- | \Psi_{\ell, m_{\ell}-1, m_s+1} = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
+\langle \Psi_{\ell', m_{\ell}', m_s'} | L_+S_- | \Psi_{\ell, m_{\ell}-1, m_s+1} \rangle = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
+```
 """
 function L_down_S_up_kron(Ψ::Wavefunction)::BitMatrix
     Ψ.l .== Ψ.l' .&& Ψ.m_l .== Ψ.m_l' .- 1 .&& Ψ.m_s .== Ψ.m_s' .+ 1
 end
 
-function construct_full_H(n::Int, λ::Float64)
-    # Setup Ψ as a vector of all possible wavefunctions
-    Ψ = Wavefunction(n)
+"""
+    construct_full_H(Ψ::Wavefunction, λ::Float64)::Matrix{ComplexF64}
 
+Construct the full Hamiltonian matrix for the given wavefunction and λ
+"""
+function construct_full_H(Ψ::Wavefunction, λ::Float64)::Matrix{ComplexF64}
     # Construct the Hamiltonian matrix
     H = Matrix{ComplexF64}(undef, length(Ψ.Ψ), length(Ψ.Ψ))
 
-    # Compute the Hamiltonian matrix elements based on the prefactors and kroenecker deltas
+    # Compute the Hamiltonian matrix elements based on the prefactors and kronecker deltas
     t1 = Lz_Sz_prefactor(Ψ, λ) .* Lz_Sz_kron(Ψ)
     t2 = L_up_S_down_prefactor(Ψ, λ) .* L_up_S_down_kron(Ψ)
     t3 = L_down_S_up_prefactor(Ψ, λ) .* L_down_S_up_kron(Ψ)
 
     # Assign the array elements
     H .= t1 .+ t2 .+ t3
-
-    return H
 end
 
-H = construct_full_H(2, 1.0)
-# println(H)
-# return
+function diagonalise(M::Matrix{ComplexF64})::Diagonal{ComplexF64, Vector{ComplexF64}}
+    # Find the eigenvalues and eigenvectors of the Hamiltonian
+    E = eigen(M)
+
+    # Get the diagonal matrix of eigenvalues
+    Diagonal(E.values)
+
+    # Check that the diagonal Hamiltonian is within numerical error of D
+    # P = eigen.vectors
+    # @assert norm(H - (P * D * inv(P))) < 1e-10
+end
 
 end  # module
