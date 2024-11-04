@@ -1,17 +1,19 @@
 ### A Pluto.jl notebook ###
-# v0.19.46
+# v0.20.3
 
 using Markdown
 using InteractiveUtils
 
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
+    #! format: off
     quote
         local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
         local el = $(esc(element))
         global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
         el
     end
+    #! format: on
 end
 
 # ╔═╡ 8d8dc664-aa90-4c96-9c0a-901dca016350
@@ -49,7 +51,7 @@ org"""
 """
 
 # ╔═╡ 93199e3a-9593-40c2-99b3-5bb3d77b8505
-const ħ = 1.0545718e-34
+const ħ = 1 # 1.0545718e-34
 
 # ╔═╡ b8414a41-9c50-48e9-a651-647f018b3def
 org"""
@@ -85,10 +87,11 @@ julia> Ψ = Wavefunction(2)
 ```
 """
 mutable struct Wavefunction
-    Ψ::Vector{Tuple{Int64,Complex{Int64},ComplexF64}}
-    l::Vector{Int16}
-    m_l::Vector{Complex{Int64}}
-    m_s::Vector{ComplexF64}
+    Ψ::Vector{Tuple{Int8,Int8,Float16}}
+    l::Vector{Int8}
+    s::Float16
+    m_l::Vector{Int8}
+    m_s::Vector{Float16}
 
     function Wavefunction(n::Int64)
         # Ensure n is greater than 0
@@ -100,7 +103,7 @@ mutable struct Wavefunction
         len_Ψ = sum((2 * l + 1) * 2 for l = 0:n-1)
 
         # Create a matrix for all possible values of quantum numbers
-        Ψ = Vector{Tuple{Int64,Complex{Int64},ComplexF64}}(undef, len_Ψ)
+        Ψ = Vector{Tuple{Int8,Int8,Float16}}(undef, len_Ψ)
 
         idx = 1
         for l = 0:n-1
@@ -114,16 +117,17 @@ mutable struct Wavefunction
 
         # Save vectors of the quantum numbers
         l = [Ψ[i][1] for i = 1:len_Ψ]
+        s = Float16(0.5)
         m_l = [Ψ[i][2] for i = 1:len_Ψ]
         m_s = [Ψ[i][3] for i = 1:len_Ψ]
 
-        new(Ψ, l, m_l, m_s)
+        new(Ψ, l, s, m_l, m_s)
     end
 end
 
 # ╔═╡ da902439-c07b-425e-8f23-b3daf9f44d81
 org"""
-Now, initialise the wavefunction when $$n=2$$
+Now, initialise the wavefunction when \(n=2\)
 
 """
 
@@ -143,7 +147,7 @@ The uncertainty principle states that when two observable operators do not commu
 where \(\sigma_J\) is the standard deviation in the measured values of \(J\). \(J\) can also be replaced by \(L\) or \(S\), and \(x, y, z\) can be rearranged in any order. However it is still possible to measure \(J^2\) and any one component of \(J\). These values are characterised by \(\ell\) and \(m\).
 
 ** Derivation
-In order to calculate [[model]], we need to apply the operators to the ket and work out the prefactors.
+In order to calculate [[model]] , we need to apply the operators to the ket and work out the prefactors.
 
 #+name: angular-spin-relation
 \begin{equation}
@@ -154,7 +158,7 @@ In order to calculate [[model]], we need to apply the operators to the ket and w
     \end{split}
 \end{equation}
 
-However, we can neglect the \(\hat{L}^2 + \hat{S}^2\) terms as they are not included in our Hamiltonian in [[model]]. Now, to define how each operator acts on the ket
+However, we can neglect the \(\hat{L}^2 + \hat{S}^2\) terms as they are not included in our Hamiltonian in [[model]] . Now, to define how each operator acts on the ket
 
 \begin{equation}
     \begin{split}
@@ -180,11 +184,11 @@ However, we can neglect the \(\hat{L}^2 + \hat{S}^2\) terms as they are not incl
 Then, substituting [[angular-spin-relation]]  into [[model-H]] , and applying \(\lambda (\hat{L} \cdot \hat{S})\) to \(\Ket{ \psi_{\ell, m_{\ell}, m_s} }\):
 
 \begin{equation}
-    \implies \lambda (\hat{L} \cdot \hat{S}) \Ket{ \Psi_{\ell, m_{\ell}, m_s} } = \frac{\lambda \hbar}{2}(m_{\ell} \cdot m_s) \Ket{ \psi_{\ell, m_{\ell}, m_s} } + \frac{\lambda \hbar^2}{2} \left[ (\ell^2 + \ell - 3m_{\ell})(s^2 + s - 3m_s) \right]^{\frac{1}{2}} \Ket{ \psi_{\ell, m_{\ell} + 1, m_s - 1} } + \frac{\lambda \hbar^2}{2} \left[ (\ell^2 + \ell - m_{\ell})(s^2 + s - m_s) \right]^{\frac{1}{2}} \Ket{ \psi_{\ell, m_{\ell} - 1, m_s + 1} }
+    \implies \lambda (\hat{L} \cdot \hat{S}) \Ket{ \Psi_{\ell, m_{\ell}, m_s} } = \frac{\lambda}{2}\hbar^2 m_{\ell} m_s \Ket{ \psi_{\ell, m_{\ell}, m_s} } + \frac{\lambda}{2} \hbar^2(\ell^2 - m_{\ell}^2  + \ell + m_{\ell})^{\frac{1}{2}}(s^2 -m_s^2 + s - m_s)^{\frac{1}{2}} \Ket{ \psi_{\ell, m_{\ell} + 1, m_s - 1} } + \frac{\lambda}{2} \hbar^2(\ell^2 - m_{\ell}^2 + \ell + m_{\ell})^{\frac{1}{2}}(s^2 - m_s^2 + s - m_s)^{\frac{1}{2}} \Ket{ \psi_{\ell, m_{\ell} - 1, m_s + 1} }
 \end{equation}
 
 \begin{equation}
-    \implies \Braket{ \Psi_{\ell', m_{\ell}', m_s'} | \lambda (\hat{L} \cdot \hat{S}) | \Psi_{\ell, m_{\ell}, m_s} } = \lambda \Braket{ \psi_{\ell', m_{\ell}', m_s'} | \hat{L}_z \hat{S}_z | \psi_{\ell, m_{\ell}, m_s} } + \lambda \Braket{ \psi_{\ell', m_{\ell}', m_s'} | \hat{L}_+ \hat{S}_- | \psi_{\ell, m_{\ell} + 1, m_s - 1} } + \lambda \Braket{ \psi_{\ell', m_{\ell}', m_s'} | \hat{L}_- \hat{S}_- | \psi_{\ell, m_{\ell} - 1, m_s + 1} }
+    \implies \Braket{ \Psi_{\ell', m_{\ell}', m_s'} | \lambda (\hat{L} \cdot \hat{S}) | \Psi_{\ell, m_{\ell}, m_s} } = \lambda \Braket{ \psi_{\ell', m_{\ell}', m_s'} | \hat{L}_z \hat{S}_z | \psi_{\ell, m_{\ell}, m_s} } + \frac{\lambda}{2} \Braket{ \psi_{\ell', m_{\ell}', m_s'} | \hat{L}_+ \hat{S}_- | \psi_{\ell, m_{\ell} + 1, m_s - 1} } + \frac{\lambda}{2} \Braket{ \psi_{\ell', m_{\ell}', m_s'} | \hat{L}_- \hat{S}_+ | \psi_{\ell, m_{\ell} - 1, m_s + 1} }
 \end{equation}
 
 where
@@ -196,50 +200,55 @@ where
 * Setup the Eigenvalue Problem
 ** Operator(s) on Ket
 Define how the Hamiltonian acts on the wavefunction in the ket
-
 """
 
 # ╔═╡ 80705724-5b4c-4f67-8b10-03c716042036
 @doc raw"""
-    Lz_Sz_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{ComplexF64}
+    Lz_Sz_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
 
 Calculate the z angular momentum spin operator prefactor
 
 ```math
-\frac{\lambda \hbar}{2} (m_l \cdot m_s) | \psi_{\ell, m_{\ell}, m_s} \rangle
+\frac{\lambda}{2}\hbar^2 m_{\ell} m_s | \psi_{\ell, m_{\ell}, m_s} \rangle
 ```
 """
-function Lz_Sz_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{ComplexF64}
-    ((λ * ħ) / 2) .* (Ψ.m_l .* Ψ.m_s)
+function Lz_Sz_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
+    (0.5 * λ * ħ^2) .* (Ψ.m_l .* Ψ.m_s)
 end
 
 # ╔═╡ 2053655a-1777-4e83-9502-7d00c17de612
 @doc raw"""
-    l_up_s_down_prefactor(ψ::Wavefunction, λ::float64)::Vector{ComplexF64}
+    l_up_s_down_prefactor(ψ::Wavefunction, λ::float64)::Vector{Float64}
 
-Calculate the L_+S_- operator prefactor.
+Calculate the $L_+S_-$ operator prefactor.
 
 ```math
-\frac{\lambda \hbar^2}{2} \left[ (\ell^2 + \ell - 3m_{\ell})(s^2 + s - 3m_s) \right]^{\frac{1}{2}} | \psi_{\ell, m_{\ell} + 1, m_s - 1} \rangle
+\frac{\lambda}{2} \hbar^2(\ell^2 - m_{\ell}^2  + \ell - m_{\ell})^{\frac{1}{2}}(s^2 - m_s^2 + s + m_s)^{\frac{1}{2}} | \psi_{\ell, m_{\ell} + 1, m_s - 1} \rangle
 ```
 """
-function L_up_S_down_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{ComplexF64}
-    ((λ * ħ^2) / 2) .*
-    ((Ψ.l .^ 2 .+ Ψ.l .- (3 .* Ψ.m_l)) .* (Ψ.m_s .^ 2 .+ Ψ.m_s .- (3 .* Ψ.m_s))) .^ 0.5
+function L_up_S_down_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
+    (0.5 * λ * ħ^2) .* (
+        (((Ψ.l .^ 2) .- (Ψ.m_l .^ 2) .+ Ψ.l .- Ψ.m_l) .^ 0.5) .*
+        (((Ψ.s .^ 2) .- (Ψ.m_s .^ 2) .+ Ψ.s .+ Ψ.m_s) .^ 0.5)
+    )
 end
+
 
 # ╔═╡ 2e44cd9b-7ad9-4a24-92e1-48ddf35abc56
 @doc raw"""
-    L_down_S_up_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{ComplexF64}
+    L_down_S_up_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
 
-Calculate the L_-S_+ operator prefactor.
+Calculate the $L_-S_+$ operator prefactor.
 
 ```math
-\frac{\lambda \hbar^2}{2} \left[ (\ell^2 + \ell - m_{\ell})(s^2 + s - m_s) \right]^{\frac{1}{2}} | \psi_{\ell, m_{\ell} - 1, m_s + 1} \rangle
+\frac{\lambda}{2} \hbar^2(\ell^2 - m_{\ell}^2 + \ell + m_{\ell})^{\frac{1}{2}}(s^2 - m_s^2 + s - m_s)^{\frac{1}{2}} | \psi_{\ell, m_{\ell} - 1, m_s + 1} \rangle
 ```
 """
-function L_down_S_up_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{ComplexF64}
-    ((λ * ħ^2) / 2) .* ((Ψ.l .^ 2 .+ Ψ.l .- Ψ.m_l) .* (Ψ.m_s .^ 2 .+ Ψ.m_s .- Ψ.m_s)) .^ 0.5
+function L_down_S_up_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
+    (0.5 * λ * ħ^2) .* (
+        (((Ψ.l .^ 2) .- (Ψ.m_l .^ 2) .+ Ψ.l .+ Ψ.m_l) .^ 0.5) .*
+        (((Ψ.s .^ 2) .- (Ψ.m_s .^ 2) .+ Ψ.s .- Ψ.m_s) .^ 0.5)
+    )
 end
 
 # ╔═╡ 765755cf-76ea-4da4-ace4-c223ef2f23b2
@@ -253,7 +262,7 @@ Additionally create \(\Bra{\psi'}\) and enact the operators on \(\Ket{\psi}\) to
 @doc raw"""
     Lz_Sz_kron(Ψ::Wavefunction)::BitMatrix
 
-Use logical indexing to apply prefactors based on the Kronecker delta for the Lz_Sz operator.
+Use logical indexing to apply prefactors based on the Kronecker delta for the $L_zS_z$ operator.
 
 ```math
 \langle \Psi_{\ell', m_{\ell}', m_s'} | L_zS_z | \Psi_{\ell, m_{\ell}, m_s} \rangle = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
@@ -267,7 +276,7 @@ end
 @doc raw"""
     L_up_S_down_kron(Ψ::Wavefunction)::BitMatrix
 
-Use logical indexing to apply prefactors based on the Kronecker delta for the L+_S- operator.
+Use logical indexing to apply prefactors based on the Kronecker delta for the $L_+S_-$ operator.
 
 ```math
 \langle \Psi_{\ell', m_{\ell}', m_s'} | L_+S_- | \Psi_{\ell, m_{\ell}+1, m_s-1} \rangle = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
@@ -281,7 +290,7 @@ end
 @doc raw"""
     L_up_S_down_kron(Ψ::Wavefunction)::BitMatrix
 
-Use logical indexing to apply prefactors based on the Kronecker delta for the L-_S+ operator.
+Use logical indexing to apply prefactors based on the Kronecker delta for the $L_-S_+$ operator.
 
 ```math
 \langle \Psi_{\ell', m_{\ell}', m_s'} | L_+S_- | \Psi_{\ell, m_{\ell}-1, m_s+1} \rangle = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
@@ -301,24 +310,40 @@ Iterate over all quantum numbers to create \(\hat{H}\) for \(n=2\)
 
 # ╔═╡ 7252392f-d6ac-4af9-86a0-4032b0cf4b69
 """
-    construct_full_H(Ψ::Wavefunction, λ::Float64)::Matrix{ComplexF64}
+    construct_full_H(Ψ::Wavefunction, λ::Float64)::Matrix{Float64}
 
 Construct the full Hamiltonian matrix for the given wavefunction and λ
 """
-function construct_full_H(Ψ::Wavefunction, λ::Float64)::Matrix{ComplexF64}
+function construct_full_H(Ψ::Wavefunction, λ::Float64)::Matrix{Float64}
     # Construct the Hamiltonian matrix
-    H = Matrix{ComplexF64}(undef, length(Ψ.Ψ), length(Ψ.Ψ))
+    H = Matrix{Float64}(undef, length(Ψ.Ψ), length(Ψ.Ψ))
 
-    # Compute the Hamiltonian matrix elements based on the prefactors and kroenecker deltas
-    t1 = Lz_Sz_prefactor(Ψ, λ) .* Lz_Sz_kron(Ψ)
-    t2 = L_up_S_down_prefactor(Ψ, λ) .* L_up_S_down_kron(Ψ)
-    t3 = L_down_S_up_prefactor(Ψ, λ) .* L_down_S_up_kron(Ψ)
+    # Compute the Hamiltonian matrix elements based on the prefactors and kronecker deltas
+    # t1 = Lz_Sz_prefactor(Ψ, λ) .* Lz_Sz_kron(Ψ)
+    # t2 = L_up_S_down_prefactor(Ψ, λ) .* L_up_S_down_kron(Ψ)
+    # t3 = L_down_S_up_prefactor(Ψ, λ) .* L_down_S_up_kron(Ψ)
+	t1 = Lz_Sz_kron(Ψ)
+    t2 = L_up_S_down_kron(Ψ)
+    t3 = L_down_S_up_kron(Ψ)
 
     # Assign the array elements
     H .= t1 .+ t2 .+ t3
 end
 
+# ╔═╡ 524a57c6-ca41-4754-84d5-f32ceffe64c9
+# ╠═╡ show_logs = false
+@show Lz_Sz_kron(Ψ)
+
+# ╔═╡ 3ed88ac2-f62a-4ef9-932e-24cebf2230af
+# ╠═╡ show_logs = false
+@show L_up_S_down_kron(Ψ)
+
+# ╔═╡ 34f5f483-397c-457f-8fbf-f0d773a0c9dc
+# ╠═╡ show_logs = false
+@show L_down_S_up_kron(Ψ)
+
 # ╔═╡ 87f10aaa-1bf4-4955-88a8-508f11538ecd
+# ╠═╡ show_logs = false
 H = construct_full_H(Ψ, 1.0)
 
 # ╔═╡ 03c62d7f-6e3a-463d-afbe-03765480b1a0
@@ -327,7 +352,7 @@ org"""
 """
 
 # ╔═╡ cb435008-00ae-4de7-9dfb-a0a8498e52fb
-function diagonalise(M::Matrix{ComplexF64})::Diagonal{ComplexF64, Vector{ComplexF64}}
+function diagonalise(M::Matrix{Float64})::Diagonal{Float64, Vector{Float64}}
     # Find the eigenvalues and eigenvectors of the Hamiltonian
     E = eigen(M)
 
@@ -353,12 +378,15 @@ Calculate and diagonalise the Hamilton whilst varying \(\lambda\)
 @bind SOC_factor Slider(1:10, default=5, show_value=true)
 
 # ╔═╡ 4ed7375a-d8a9-4755-bff0-fa692e8e4b6f
-Λ = collect(0:(SOC_factor/10)/ħ:SOC_factor/ħ)
+Λ = collect(0:(SOC_factor/10)/ħ^2:SOC_factor/ħ^2)
+# Λ = collect(0:SOC_factor/10:SOC_factor)
 
 # ╔═╡ 01162634-6dc7-45c4-aca7-a6c675a89b86
-e_vals = Matrix{ComplexF64}(undef, length(Ψ.Ψ), length(Λ))
+# e_vals = Matrix{Float64}(undef, length(Ψ.Ψ), length(Λ))
+e_vals = zeros(Float64, length(Ψ.Ψ), length(Λ))
 
 # ╔═╡ 021db029-5b31-4097-bfb0-6756d929a34c
+# ╠═╡ show_logs = false
 for λ in eachindex(Λ)
     H = construct_full_H(Ψ, Λ[λ])
     H_d = diagonalise(H)
@@ -385,7 +413,7 @@ begin
 	#scatter3d(real(e_vals[1, :]), imag(e_vals[1,:]), Λ)
 	
 	# Start by plotting just the first eigenvalues (ie. for 1s orbitals)
-	real_e_vals = plot(Λ, real(e_vals[1, :]), label=L"$\ell=0$ $m_{\ell}=0$, $m_s=\downarrow$", xlabel=L"λ", markershape=:auto)
+	real_e_vals = plot(Λ, e_vals[1, :], label=L"$\ell=0$ $m_{\ell}=0$, $m_s=\downarrow$", xlabel=L"λ", markershape=:auto)
 
 	# Then plot the others
 	for i in 2:length(e_vals[:, 1])
@@ -447,7 +475,7 @@ end
 # ╠═93199e3a-9593-40c2-99b3-5bb3d77b8505
 # ╟─b8414a41-9c50-48e9-a651-647f018b3def
 # ╠═cbd36b1a-4794-43f0-b0dc-21838fa3aa70
-# ╟─da902439-c07b-425e-8f23-b3daf9f44d81
+# ╠═da902439-c07b-425e-8f23-b3daf9f44d81
 # ╠═cc41e84b-c401-4f78-8021-3b6482d2314c
 # ╟─a107ebfd-d6df-452f-8640-3f44283bf4ba
 # ╠═80705724-5b4c-4f67-8b10-03c716042036
@@ -459,6 +487,9 @@ end
 # ╠═dd132e66-1759-466a-bde8-d534cdccc091
 # ╟─f5787c0f-bbe0-4326-ac4b-a268e92c1c25
 # ╠═7252392f-d6ac-4af9-86a0-4032b0cf4b69
+# ╠═524a57c6-ca41-4754-84d5-f32ceffe64c9
+# ╠═3ed88ac2-f62a-4ef9-932e-24cebf2230af
+# ╠═34f5f483-397c-457f-8fbf-f0d773a0c9dc
 # ╠═87f10aaa-1bf4-4955-88a8-508f11538ecd
 # ╟─03c62d7f-6e3a-463d-afbe-03765480b1a0
 # ╠═cb435008-00ae-4de7-9dfb-a0a8498e52fb
