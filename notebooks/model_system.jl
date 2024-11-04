@@ -96,7 +96,7 @@ mutable struct Wavefunction
     function Wavefunction(n::Int64)
         # Ensure n is greater than 0
         if n < 0
-            throw(ArgumentError("n must be ∈ ℕ₀"))
+            throw(ArgumentError("required that n ∈ ℕ₀"))
         end
 
         # Calculate the total number of combinations
@@ -204,50 +204,50 @@ Define how the Hamiltonian acts on the wavefunction in the ket
 
 # ╔═╡ 80705724-5b4c-4f67-8b10-03c716042036
 @doc raw"""
-    Lz_Sz_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
+    Lz_Sz_operator(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
 
-Calculate the z angular momentum spin operator prefactor
+Calculate the z angular momentum spin operator
 
 ```math
-\frac{\lambda}{2}\hbar^2 m_{\ell} m_s | \psi_{\ell, m_{\ell}, m_s} \rangle
+\hbar^2 m_{\ell} m_s | \psi_{\ell, m_{\ell}, m_s} \rangle
 ```
 """
-function Lz_Sz_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
-    (0.5 * λ * ħ^2) .* (Ψ.m_l .* Ψ.m_s)
+function Lz_Sz_operator(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
+    (λ * ħ^2) .* (Ψ.m_l .* Ψ.m_s)
 end
 
 # ╔═╡ 2053655a-1777-4e83-9502-7d00c17de612
 @doc raw"""
-    l_up_s_down_prefactor(ψ::Wavefunction, λ::float64)::Vector{Float64}
+    l_up_s_down_operator(ψ::Wavefunction, λ::float64)::Vector{Float64}
 
-Calculate the $L_+S_-$ operator prefactor.
+Calculate the $L_+S_-$ operator
 
 ```math
 \frac{\lambda}{2} \hbar^2(\ell^2 - m_{\ell}^2  + \ell - m_{\ell})^{\frac{1}{2}}(s^2 - m_s^2 + s + m_s)^{\frac{1}{2}} | \psi_{\ell, m_{\ell} + 1, m_s - 1} \rangle
 ```
 """
-function L_up_S_down_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
+function L_up_S_down_operator(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
     (0.5 * λ * ħ^2) .* (
-        (((Ψ.l .^ 2) .- (Ψ.m_l .^ 2) .+ Ψ.l .- Ψ.m_l) .^ 0.5) .*
-        (((Ψ.s .^ 2) .- (Ψ.m_s .^ 2) .+ Ψ.s .+ Ψ.m_s) .^ 0.5)
+        (((Ψ.l .^ 2) .+ Ψ.l .- (Ψ.m_l .^ 2) .+ Ψ.m_l) .^ 0.5) .*
+        (((Ψ.s .^ 2) .+ Ψ.s .- (Ψ.m_s .^ 2) .- Ψ.m_s) .^ 0.5)
     )
 end
 
 
 # ╔═╡ 2e44cd9b-7ad9-4a24-92e1-48ddf35abc56
 @doc raw"""
-    L_down_S_up_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
+    L_down_S_up_operator(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
 
-Calculate the $L_-S_+$ operator prefactor.
+Calculate the $L_-S_+$ operator
 
 ```math
 \frac{\lambda}{2} \hbar^2(\ell^2 - m_{\ell}^2 + \ell + m_{\ell})^{\frac{1}{2}}(s^2 - m_s^2 + s - m_s)^{\frac{1}{2}} | \psi_{\ell, m_{\ell} - 1, m_s + 1} \rangle
 ```
 """
-function L_down_S_up_prefactor(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
+function L_down_S_up_operator(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
     (0.5 * λ * ħ^2) .* (
-        (((Ψ.l .^ 2) .- (Ψ.m_l .^ 2) .+ Ψ.l .+ Ψ.m_l) .^ 0.5) .*
-        (((Ψ.s .^ 2) .- (Ψ.m_s .^ 2) .+ Ψ.s .- Ψ.m_s) .^ 0.5)
+        (((Ψ.l .^ 2) .+ Ψ.l .- (Ψ.m_l .^ 2) .- Ψ.m_l) .^ 0.5) .*
+        (((Ψ.s .^ 2) .+ Ψ.s .- (Ψ.m_s .^ 2) .+ Ψ.m_s) .^ 0.5)
     )
 end
 
@@ -319,12 +319,9 @@ function construct_full_H(Ψ::Wavefunction, λ::Float64)::Matrix{Float64}
     H = Matrix{Float64}(undef, length(Ψ.Ψ), length(Ψ.Ψ))
 
     # Compute the Hamiltonian matrix elements based on the prefactors and kronecker deltas
-    # t1 = Lz_Sz_prefactor(Ψ, λ) .* Lz_Sz_kron(Ψ)
-    # t2 = L_up_S_down_prefactor(Ψ, λ) .* L_up_S_down_kron(Ψ)
-    # t3 = L_down_S_up_prefactor(Ψ, λ) .* L_down_S_up_kron(Ψ)
-	t1 = Lz_Sz_kron(Ψ)
-    t2 = L_up_S_down_kron(Ψ)
-    t3 = L_down_S_up_kron(Ψ)
+    t1 = Lz_Sz_operator(Ψ, λ) .* Lz_Sz_kron(Ψ) 
+    t2 = L_up_S_down_operator(Ψ, λ) .* L_up_S_down_kron(Ψ)
+    t3 = L_down_S_up_operator(Ψ, λ) .* L_down_S_up_kron(Ψ)
 
     # Assign the array elements
     H .= t1 .+ t2 .+ t3
@@ -332,15 +329,10 @@ end
 
 # ╔═╡ 524a57c6-ca41-4754-84d5-f32ceffe64c9
 # ╠═╡ show_logs = false
-@show Lz_Sz_kron(Ψ)
+@show L_up_S_down_operator(Ψ, 1.0) .* L_up_S_down_kron(Ψ)
 
-# ╔═╡ 3ed88ac2-f62a-4ef9-932e-24cebf2230af
-# ╠═╡ show_logs = false
-@show L_up_S_down_kron(Ψ)
-
-# ╔═╡ 34f5f483-397c-457f-8fbf-f0d773a0c9dc
-# ╠═╡ show_logs = false
-@show L_down_S_up_kron(Ψ)
+# ╔═╡ a56d56a6-5fa1-4d51-8699-b2cf18b866ac
+@show L_down_S_up_operator(Ψ, 1.0) .* L_down_S_up_kron(Ψ)
 
 # ╔═╡ 87f10aaa-1bf4-4955-88a8-508f11538ecd
 # ╠═╡ show_logs = false
@@ -409,9 +401,9 @@ org"""
 """
 
 # ╔═╡ be6615fe-28db-4f81-b9ee-3ea1878793f8
-begin
-	#scatter3d(real(e_vals[1, :]), imag(e_vals[1,:]), Λ)
-	
+# ╠═╡ disabled = true
+#=╠═╡
+begin	
 	# Start by plotting just the first eigenvalues (ie. for 1s orbitals)
 	real_e_vals = plot(Λ, e_vals[1, :], label=L"$\ell=0$ $m_{\ell}=0$, $m_s=\downarrow$", xlabel=L"λ", markershape=:auto)
 
@@ -425,6 +417,27 @@ begin
 	end
 	real_e_vals
 end
+  ╠═╡ =#
+
+# ╔═╡ b422a090-9756-4006-a160-237cd4ab3da4
+begin 
+	down_evals = plot(Λ, e_vals[3, :], markershape=:auto, label=3)
+
+	for i in 5:2:length(e_vals[:, 1])
+		plot!(down_evals, Λ, e_vals[i, :], markershape=:auto, label=i)
+	end
+	down_evals
+end
+
+# ╔═╡ 2d806954-759a-4593-ad0c-5f8872aa073c
+begin 
+	up_evals = plot(Λ, e_vals[4, :], markershape=:auto, label=4)
+
+	for i in 6:2:length(e_vals[:, 1])
+		plot!(up_evals, Λ, e_vals[i, :], markershape=:auto, label=i)
+	end
+	up_evals
+end
 
 # ╔═╡ 650959a9-06d5-4673-bdac-65a15e31c2d9
 org"""
@@ -432,6 +445,8 @@ org"""
 """
 
 # ╔═╡ 4bc840f2-d95e-4ee3-9c37-d95ebaee444c
+# ╠═╡ disabled = true
+#=╠═╡
 begin	
 	imag_e_vals = plot(Λ, imag(e_vals[1, :]), label=L"$\ell=0$ $m_{\ell}=0$, $m_s=\downarrow$", xlabel=L"λ", markershape=:auto)
 
@@ -444,6 +459,7 @@ begin
 	end
 	imag_e_vals
 end
+  ╠═╡ =#
 
 # ╔═╡ 4fa9d932-ed70-4bbc-8214-584f935a113b
 org"""
@@ -451,6 +467,8 @@ org"""
 """
 
 # ╔═╡ 3f8a9c38-878e-4706-8c7e-f733feb72475
+# ╠═╡ disabled = true
+#=╠═╡
 begin
 	all_e_vals = plot3d(imag(e_vals[1, :]), real(e_vals[1, :]), Λ, label=L"$\ell=0$ $m_{\ell}=0$, $m_s=\downarrow$", xlabel="imaginary", ylabel="real", zlabel=L"λ", markershape=:auto)
 
@@ -463,6 +481,7 @@ begin
 	end 
 	all_e_vals
 end
+  ╠═╡ =#
 
 # ╔═╡ Cell order:
 # ╟─04c8bebb-b4d2-4d16-8b43-594428bb4c18
@@ -475,7 +494,7 @@ end
 # ╠═93199e3a-9593-40c2-99b3-5bb3d77b8505
 # ╟─b8414a41-9c50-48e9-a651-647f018b3def
 # ╠═cbd36b1a-4794-43f0-b0dc-21838fa3aa70
-# ╠═da902439-c07b-425e-8f23-b3daf9f44d81
+# ╟─da902439-c07b-425e-8f23-b3daf9f44d81
 # ╠═cc41e84b-c401-4f78-8021-3b6482d2314c
 # ╟─a107ebfd-d6df-452f-8640-3f44283bf4ba
 # ╠═80705724-5b4c-4f67-8b10-03c716042036
@@ -488,8 +507,7 @@ end
 # ╟─f5787c0f-bbe0-4326-ac4b-a268e92c1c25
 # ╠═7252392f-d6ac-4af9-86a0-4032b0cf4b69
 # ╠═524a57c6-ca41-4754-84d5-f32ceffe64c9
-# ╠═3ed88ac2-f62a-4ef9-932e-24cebf2230af
-# ╠═34f5f483-397c-457f-8fbf-f0d773a0c9dc
+# ╠═a56d56a6-5fa1-4d51-8699-b2cf18b866ac
 # ╠═87f10aaa-1bf4-4955-88a8-508f11538ecd
 # ╟─03c62d7f-6e3a-463d-afbe-03765480b1a0
 # ╠═cb435008-00ae-4de7-9dfb-a0a8498e52fb
@@ -503,6 +521,8 @@ end
 # ╟─324873f2-dad3-438f-87e6-ce560b02aacc
 # ╟─699c1e43-c19b-4011-b8cb-8a36608017d8
 # ╠═be6615fe-28db-4f81-b9ee-3ea1878793f8
+# ╠═b422a090-9756-4006-a160-237cd4ab3da4
+# ╠═2d806954-759a-4593-ad0c-5f8872aa073c
 # ╟─650959a9-06d5-4673-bdac-65a15e31c2d9
 # ╠═4bc840f2-d95e-4ee3-9c37-d95ebaee444c
 # ╟─4fa9d932-ed70-4bbc-8214-584f935a113b
