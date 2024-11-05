@@ -51,7 +51,7 @@ org"""
 """
 
 # ╔═╡ 93199e3a-9593-40c2-99b3-5bb3d77b8505
-const ħ = 1 # 1.0545718e-34
+const ħ = 1.0545718e-34
 
 # ╔═╡ b8414a41-9c50-48e9-a651-647f018b3def
 org"""
@@ -78,7 +78,7 @@ Define a wavefunction for a given n in a basis of $l$, $m_l$, and $m_s$
 
 The length of the wavefunction vector is given by
 ```math
-\sum_{n=1}^{n} \sum_{l=0}^{n-1} 2(2l + 1)
+2 \sum_{l=0}^{n-1} 2(2l + 1)
 ```
 
 # Examples
@@ -209,7 +209,7 @@ Define how the Hamiltonian acts on the wavefunction in the ket
 Calculate the z angular momentum spin operator
 
 ```math
-\hbar^2 m_{\ell} m_s | \psi_{\ell, m_{\ell}, m_s} \rangle
+\lambda \hbar^2 m_{\ell} m_s | \psi_{\ell, m_{\ell}, m_s} \rangle
 ```
 """
 function Lz_Sz_operator(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
@@ -218,7 +218,7 @@ end
 
 # ╔═╡ 2053655a-1777-4e83-9502-7d00c17de612
 @doc raw"""
-    l_up_s_down_operator(ψ::Wavefunction, λ::float64)::Vector{Float64}
+    L_up_S_down_operator(ψ::Wavefunction, λ::float64)::Vector{Float64}
 
 Calculate the $L_+S_-$ operator
 
@@ -228,8 +228,8 @@ Calculate the $L_+S_-$ operator
 """
 function L_up_S_down_operator(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
     (0.5 * λ * ħ^2) .* (
-        (((Ψ.l .^ 2) .+ Ψ.l .- (Ψ.m_l .^ 2) .+ Ψ.m_l) .^ 0.5) .*
-        (((Ψ.s .^ 2) .+ Ψ.s .- (Ψ.m_s .^ 2) .- Ψ.m_s) .^ 0.5)
+        (((Ψ.l .^ 2) .+ Ψ.l .- (Ψ.m_l .^ 2) .- Ψ.m_l) .^ 0.5) .*
+        (((Ψ.s .^ 2) .+ Ψ.s .- (Ψ.m_s .^ 2) .+ Ψ.m_s) .^ 0.5)
     )
 end
 
@@ -246,8 +246,8 @@ Calculate the $L_-S_+$ operator
 """
 function L_down_S_up_operator(Ψ::Wavefunction, λ::Float64)::Vector{Float64}
     (0.5 * λ * ħ^2) .* (
-        (((Ψ.l .^ 2) .+ Ψ.l .- (Ψ.m_l .^ 2) .- Ψ.m_l) .^ 0.5) .*
-        (((Ψ.s .^ 2) .+ Ψ.s .- (Ψ.m_s .^ 2) .+ Ψ.m_s) .^ 0.5)
+        (((Ψ.l .^ 2) .+ Ψ.l .- (Ψ.m_l .^ 2) .+ Ψ.m_l) .^ 0.5) .*
+        (((Ψ.s .^ 2) .+ Ψ.s .- (Ψ.m_s .^ 2) .- Ψ.m_s) .^ 0.5)
     )
 end
 
@@ -283,7 +283,7 @@ Use logical indexing to apply prefactors based on the Kronecker delta for the $L
 ```
 """
 function L_up_S_down_kron(Ψ::Wavefunction)::BitMatrix
-    Ψ.l .== Ψ.l' .&& Ψ.m_l .== Ψ.m_l' .+ 1 .&& Ψ.m_s .== Ψ.m_s' .- 1
+    Ψ.l .== Ψ.l' .&& Ψ.m_l' .== Ψ.m_l .+ 1 .&& Ψ.m_s' .== Ψ.m_s .- 1
 end
 
 # ╔═╡ dd132e66-1759-466a-bde8-d534cdccc091
@@ -297,7 +297,7 @@ Use logical indexing to apply prefactors based on the Kronecker delta for the $L
 ```
 """
 function L_down_S_up_kron(Ψ::Wavefunction)::BitMatrix
-    Ψ.l .== Ψ.l' .&& Ψ.m_l .== Ψ.m_l' .- 1 .&& Ψ.m_s .== Ψ.m_s' .+ 1
+    Ψ.l .== Ψ.l' .&& Ψ.m_l' .== Ψ.m_l .- 1 .&& Ψ.m_s' .== Ψ.m_s .+ 1
 end
 
 # ╔═╡ f5787c0f-bbe0-4326-ac4b-a268e92c1c25
@@ -327,13 +327,6 @@ function construct_full_H(Ψ::Wavefunction, λ::Float64)::Matrix{Float64}
     H .= t1 .+ t2 .+ t3
 end
 
-# ╔═╡ 524a57c6-ca41-4754-84d5-f32ceffe64c9
-# ╠═╡ show_logs = false
-@show L_up_S_down_operator(Ψ, 1.0) .* L_up_S_down_kron(Ψ)
-
-# ╔═╡ a56d56a6-5fa1-4d51-8699-b2cf18b866ac
-@show L_down_S_up_operator(Ψ, 1.0) .* L_down_S_up_kron(Ψ)
-
 # ╔═╡ 87f10aaa-1bf4-4955-88a8-508f11538ecd
 # ╠═╡ show_logs = false
 H = construct_full_H(Ψ, 1.0)
@@ -344,12 +337,20 @@ org"""
 """
 
 # ╔═╡ cb435008-00ae-4de7-9dfb-a0a8498e52fb
-function diagonalise(M::Matrix{Float64})::Diagonal{Float64, Vector{Float64}}
-    # Find the eigenvalues and eigenvectors of the Hamiltonian
-    E = eigen(M)
+function diagonalise(M::Matrix{Float64}; filter::Union{Nothing,Char}='s')::Diagonal{Float64, Vector{Float64}}
+	if !isnothing(filter)
+		M = M[3:8, 3:8]
+	end
+	
+	# TODO
+	# elseif filter == "p"
+		
+	
+    # Find the eigenvalues of the Hamiltonian
+    E = eigvals(M)
 
     # Get the diagonal matrix of eigenvalues
-    Diagonal(E.values)
+    Diagonal(E)
 
     # Check that the diagonal Hamiltonian is within numerical error of D
     # P = eigen.vectors
@@ -374,8 +375,7 @@ Calculate and diagonalise the Hamilton whilst varying \(\lambda\)
 # Λ = collect(0:SOC_factor/10:SOC_factor)
 
 # ╔═╡ 01162634-6dc7-45c4-aca7-a6c675a89b86
-# e_vals = Matrix{Float64}(undef, length(Ψ.Ψ), length(Λ))
-e_vals = zeros(Float64, length(Ψ.Ψ), length(Λ))
+e_vals = zeros(Float64, length(Ψ.Ψ) - 2, length(Λ))
 
 # ╔═╡ 021db029-5b31-4097-bfb0-6756d929a34c
 # ╠═╡ show_logs = false
@@ -397,74 +397,26 @@ Plot the eigenvalues for various values of \lambda
 
 # ╔═╡ 699c1e43-c19b-4011-b8cb-8a36608017d8
 org"""
-** Real Eigenvalues
+** Fine Structure
 """
-
-# ╔═╡ be6615fe-28db-4f81-b9ee-3ea1878793f8
-# ╠═╡ disabled = true
-#=╠═╡
-begin	
-	# Start by plotting just the first eigenvalues (ie. for 1s orbitals)
-	real_e_vals = plot(Λ, e_vals[1, :], label=L"$\ell=0$ $m_{\ell}=0$, $m_s=\downarrow$", xlabel=L"λ", markershape=:auto)
-
-	# Then plot the others
-	for i in 2:length(e_vals[:, 1])
-		Ψ_l_i = real(Ψ.l[i])
-		Ψ_m_l_i = real(Ψ.m_l[i])
-		Ψ_m_s_i = real(Ψ.m_s[i]) == 0.5 ? "\\uparrow" : "\\downarrow"
-		lab = "\$\\ell=$Ψ_l_i\$, \$m_{\\ell}=$Ψ_m_l_i\$, \$m_s=$Ψ_m_s_i\$"
-		plot!(real_e_vals, Λ, real(e_vals[i, :]), label=lab, markershape=:auto)
-	end
-	real_e_vals
-end
-  ╠═╡ =#
 
 # ╔═╡ b422a090-9756-4006-a160-237cd4ab3da4
-begin 
-	down_evals = plot(Λ, e_vals[3, :], markershape=:auto, label=3)
-
-	for i in 5:2:length(e_vals[:, 1])
-		plot!(down_evals, Λ, e_vals[i, :], markershape=:auto, label=i)
-	end
-	down_evals
-end
-
-# ╔═╡ 2d806954-759a-4593-ad0c-5f8872aa073c
-begin 
-	up_evals = plot(Λ, e_vals[4, :], markershape=:auto, label=4)
-
-	for i in 6:2:length(e_vals[:, 1])
-		plot!(up_evals, Λ, e_vals[i, :], markershape=:auto, label=i)
-	end
-	up_evals
-end
-
-# ╔═╡ 650959a9-06d5-4673-bdac-65a15e31c2d9
-org"""
-** Imaginary Eigenvalues
-"""
-
-# ╔═╡ 4bc840f2-d95e-4ee3-9c37-d95ebaee444c
-# ╠═╡ disabled = true
-#=╠═╡
-begin	
-	imag_e_vals = plot(Λ, imag(e_vals[1, :]), label=L"$\ell=0$ $m_{\ell}=0$, $m_s=\downarrow$", xlabel=L"λ", markershape=:auto)
+begin
+	one_half_label = "\$m_j = \\frac{1}{2}\$"
+	fine_splitting = plot(Λ, e_vals[1, :], markershape=:diamond, label=one_half_label, xlabel="\$\\lambda\$")
+	markers = [:x, :square, :circle, :diamond, :x]
 
 	for i in 2:length(e_vals[:, 1])
-		Ψ_l_i = real(Ψ.l[i])
-		Ψ_m_l_i = real(Ψ.m_l[i])
-		Ψ_m_s_i = real(Ψ.m_s[i]) == 0.5 ? "\\uparrow" : "\\downarrow"
-		lab = "\$\\ell=$Ψ_l_i\$, \$m_{\\ell}=$Ψ_m_l_i\$, \$m_s=$Ψ_m_s_i\$"
-		plot!(imag_e_vals, Λ, imag(e_vals[i, :]), label=lab, markershape=:auto)
+		if i == 2 
+			lab = one_half_label
+		else
+			lab = "\$m_j = \\frac{3}{2}\$"
+		end
+			
+		plot!(fine_splitting, Λ, e_vals[i, :], markershape=markers[i-1], label=lab, legend=:right)
 	end
-	imag_e_vals
+	fine_splitting
 end
-  ╠═╡ =#
-
-# ╔═╡ 4fa9d932-ed70-4bbc-8214-584f935a113b
-org"""
-* Real and Imaginary
-"""
 
 # ╔═╡ 3f8a9c38-878e-4706-8c7e-f733feb72475
 # ╠═╡ disabled = true
@@ -506,8 +458,6 @@ end
 # ╠═dd132e66-1759-466a-bde8-d534cdccc091
 # ╟─f5787c0f-bbe0-4326-ac4b-a268e92c1c25
 # ╠═7252392f-d6ac-4af9-86a0-4032b0cf4b69
-# ╠═524a57c6-ca41-4754-84d5-f32ceffe64c9
-# ╠═a56d56a6-5fa1-4d51-8699-b2cf18b866ac
 # ╠═87f10aaa-1bf4-4955-88a8-508f11538ecd
 # ╟─03c62d7f-6e3a-463d-afbe-03765480b1a0
 # ╠═cb435008-00ae-4de7-9dfb-a0a8498e52fb
@@ -520,10 +470,5 @@ end
 # ╠═ca872726-8556-4140-a6e7-8772ab575cf3
 # ╟─324873f2-dad3-438f-87e6-ce560b02aacc
 # ╟─699c1e43-c19b-4011-b8cb-8a36608017d8
-# ╠═be6615fe-28db-4f81-b9ee-3ea1878793f8
 # ╠═b422a090-9756-4006-a160-237cd4ab3da4
-# ╠═2d806954-759a-4593-ad0c-5f8872aa073c
-# ╟─650959a9-06d5-4673-bdac-65a15e31c2d9
-# ╠═4bc840f2-d95e-4ee3-9c37-d95ebaee444c
-# ╟─4fa9d932-ed70-4bbc-8214-584f935a113b
-# ╠═3f8a9c38-878e-4706-8c7e-f733feb72475
+# ╟─3f8a9c38-878e-4706-8c7e-f733feb72475
