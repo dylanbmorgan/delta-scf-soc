@@ -51,7 +51,11 @@ org"""
 """
 
 # ╔═╡ 93199e3a-9593-40c2-99b3-5bb3d77b8505
-const ħ = 1.0545718e-34
+begin
+	const ħ = 1.0545718e-34
+	const μ_B = 9.274e-24
+	const g_e = -2.00231930436092
+end
 
 # ╔═╡ b8414a41-9c50-48e9-a651-647f018b3def
 org"""
@@ -266,15 +270,15 @@ Additionally create \(\Bra{\psi'}\) and enact the operators on \(\Ket{\psi}\) to
 
 # ╔═╡ 09b3b979-078b-4e67-b6fe-68f5a4d07987
 @doc raw"""
-    Lz_Sz_kron(Ψ::Wavefunction)::BitMatrix
+    diag_kron(Ψ::Wavefunction)::BitMatrix
 
-Use logical indexing to apply prefactors based on the Kronecker delta for the $L_zS_z$ operator.
+Use logical indexing to apply prefactors based on the Kronecker delta for a generic operator $\hat{O}$ such it creates a diagonal $\hat{H}$ matrix.
 
 ```math
 \langle \Psi_{\ell', m_{\ell}', m_s'} | L_zS_z | \Psi_{\ell, m_{\ell}, m_s} \rangle = \delta_{l' l} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
 ```
 """
-function Lz_Sz_kron(Ψ::Wavefunction)::BitMatrix
+function diag_kron(Ψ::Wavefunction)::BitMatrix
     Ψ.l .== Ψ.l' .&& Ψ.m_l .== Ψ.m_l' .&& Ψ.m_s .== Ψ.m_s'
 end
 
@@ -316,16 +320,16 @@ Iterate over all quantum numbers to create \(\hat{H}\) for \(n=2\)
 
 # ╔═╡ 7252392f-d6ac-4af9-86a0-4032b0cf4b69
 """
-    construct_full_H(Ψ::Wavefunction, λ::Float64)::Matrix{Float64}
+    construct_SOC_H(Ψ::Wavefunction, λ::Float64)::Matrix{Float64}
 
 Construct the full Hamiltonian matrix for the given wavefunction and λ
 """
-function construct_full_H(Ψ::Wavefunction, λ::Float64)::Matrix{Float64}
-    # Construct the Hamiltonian matrix
+function construct_SOC_H(Ψ::Wavefunction, λ::Float64)::Matrix{Float64}
+    # Construct the matrix
     H = Matrix{Float64}(undef, length(Ψ.Ψ), length(Ψ.Ψ))
 
     # Compute the Hamiltonian matrix elements based on the prefactors and kronecker deltas
-    t1 = Lz_Sz_operator(Ψ, λ) .* Lz_Sz_kron(Ψ) 
+    t1 = Lz_Sz_operator(Ψ, λ) .* diag_kron(Ψ) 
     t2 = L_up_S_down_operator(Ψ, λ) .* L_up_S_down_kron(Ψ)
     t3 = L_down_S_up_operator(Ψ, λ) .* L_down_S_up_kron(Ψ)
 
@@ -335,7 +339,7 @@ end
 
 # ╔═╡ 87f10aaa-1bf4-4955-88a8-508f11538ecd
 # ╠═╡ show_logs = false
-H = construct_full_H(Ψ, 1.0)
+H = construct_SOC_H(Ψ, 1.0)
 
 # ╔═╡ 03c62d7f-6e3a-463d-afbe-03765480b1a0
 org"""
@@ -386,7 +390,7 @@ e_vals = zeros(Float64, length(Ψ.Ψ) - 2, length(Λ))
 # ╔═╡ 021db029-5b31-4097-bfb0-6756d929a34c
 # ╠═╡ show_logs = false
 for λ in eachindex(Λ)
-    H = construct_full_H(Ψ, Λ[λ])
+    H = construct_SOC_H(Ψ, Λ[λ])
     H_d = diagonalise(H)
     e_vals[:, λ] .= H_d.diag
 end
@@ -426,18 +430,76 @@ end
 
 # ╔═╡ f6b70202-5a88-4ddd-b65e-e18f8ab685a3
 org"""
-* Effect of Magnetic Fields
+* Effect of Externally Applied Magnetic Fields
 
-Investigate the effect of applying an external magnetic field to the spin operator by using \(\vec{B} \cdot \hat{S}_z\) as \(\hat{H}\).
+Investigate the effect of applying an external magnetic field to the wavefunction, 
+
+\begin{equation}
+	\hat{H} = - \mu \cdot \vec{B}.
+\end{equation}
+
+For an electron with spin \(S\), its magnetic moment is proportional to the spin operator 
+
+\begin{equation}
+	\mu = - \gamma \hat{S}.
+\end{equation}
+
+The gyromagnetic ratio relates the electron spin to its magnetic moment, 
+
+\begin{equation}
+	\gamma_e = \frac{g_e \mu_B}{\hbar}.
+\end{equation}
+
+Substituting this, 
+
+\begin{equation}
+	\hat{H} = - \gamma \vec{B} \cdot \hat{S}.
+\end{equation}
+
+If 
+
+\begin{split}
+	- \gamma \vec{B} \cdot \hat{S} &= - \gamma (B_x \hat{S}_x + B_y \hat{S}_y + B_z \hat{S}_z) \\
+	\implies - \gamma \vec{B} \cdot \hat{S}_z &= - \gamma B_z \hat{S}_z = - \gamma B_0 \hat{S}_z \\
+\end{split}
+
+Therefore, if \(\hat{H} = - \gamma \vec{B}_0 \cdot \hat{S}_z\),
 
 #+name: model-H
 \begin{equation}
-    \Braket{ \Psi_{\ell, m_{\ell}, m_s} | - \gamma B_0 \hat{S}_z | \Psi_{\ell, m_{\ell}, m_s} }
+    \Braket{ \Psi_{\ell, m_{\ell}, m_s} | - \gamma B_0 \hat{S}_z | \Psi_{\ell, m_{\ell}, m_s} }.
 \end{equation}
 """
 
 # ╔═╡ 6fa4a814-58c2-4c21-8778-223c6626c5ea
+@doc raw"""
+	mag_field_spin_operator(Ψ::Wavefunction, B_0::Float64)::Vector{Float64}
 
+Calculate the electronic Zeeman operator in the z-direction 
+
+```math
+-\gamma B_0 \hat{S}_z | \Psi_{\ell, m_{\ell}, m_s} \rangle
+```
+"""
+function mag_field_spin_operator(Ψ::Wavefunction, B_0::Float64 = 1.0)::Vector{Float64}
+	γ = (g_e * μ_B) / ħ
+	(-γ * B_0) .* Ψ.s
+end
+
+# ╔═╡ 49eb677e-c170-46bf-8543-85417b0ba240
+@doc raw"""
+    construct_zeeman_H(Ψ::Wavefunction, λ::Float64)::Matrix{Float64}
+
+Construct the full Hamiltonian matrix for the given wavefunction and $B_0$
+"""
+function construct_zeeman_H(Ψ::Wavefunction, B_0::Float64)::Matrix{Float64}
+	# Construct the matrix 
+	H = Matrix{Float64}(undef, length(Ψ.Ψ), length(Ψ.Ψ))
+
+	# Apply the operator and kronecker delta 
+	# Can reuse the diag_kron function as all we need are the diagonal elements
+	H .= mag_field_spin_operator(Ψ, B_0) .* diag_kron(Ψ)
+end
 
 # ╔═╡ 3f8a9c38-878e-4706-8c7e-f733feb72475
 # ╠═╡ disabled = true
@@ -465,7 +527,7 @@ end
 # ╠═fac1f703-6198-4f5c-a8b3-ae10d2a76065
 # ╟─0385debe-6f66-4f69-b1f3-a560456e3240
 # ╠═93199e3a-9593-40c2-99b3-5bb3d77b8505
-# ╠═b8414a41-9c50-48e9-a651-647f018b3def
+# ╟─b8414a41-9c50-48e9-a651-647f018b3def
 # ╠═cbd36b1a-4794-43f0-b0dc-21838fa3aa70
 # ╟─da902439-c07b-425e-8f23-b3daf9f44d81
 # ╠═cc41e84b-c401-4f78-8021-3b6482d2314c
@@ -494,6 +556,7 @@ end
 # ╟─324873f2-dad3-438f-87e6-ce560b02aacc
 # ╟─699c1e43-c19b-4011-b8cb-8a36608017d8
 # ╠═b422a090-9756-4006-a160-237cd4ab3da4
-# ╠═f6b70202-5a88-4ddd-b65e-e18f8ab685a3
+# ╟─f6b70202-5a88-4ddd-b65e-e18f8ab685a3
 # ╠═6fa4a814-58c2-4c21-8778-223c6626c5ea
+# ╠═49eb677e-c170-46bf-8543-85417b0ba240
 # ╟─3f8a9c38-878e-4706-8c7e-f733feb72475
