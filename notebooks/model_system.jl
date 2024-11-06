@@ -60,7 +60,7 @@ We can set up a spin-orbit coupling Hamiltonian for a model system, where the wa
 
 #+name: model-H
 \begin{equation}
-    \Braket{ \Psi_{\ell, m_{\ell}, m_s} | \lambda \hat{L} \cdot \hat{S} | \Psi_{\ell, m_{\ell}, m_s} }
+    \Braket{ \Psi_{\ell, m_{\ell}, m_s} | \lambda (\hat{L} \cdot \hat{S}) | \Psi_{\ell, m_{\ell}, m_s} }
 \end{equation}
 
 Where \(\hat{L}\) is the orbital angular momentum operator, \(\hat{S}\) is the spin operator, and \(\lambda\) is the spin-orbit coupling strength, which is dependent on the atomic number of the elements in the solid.
@@ -145,7 +145,10 @@ The uncertainty principle states that when two observable operators do not commu
 \end{equation}
 
 where \(\sigma_J\) is the standard deviation in the measured values of \(J\). \(J\) can also be replaced by \(L\) or \(S\), and \(x, y, z\) can be rearranged in any order. However it is still possible to measure \(J^2\) and any one component of \(J\). These values are characterised by \(\ell\) and \(m\).
+"""
 
+# ╔═╡ 78247dda-7315-4fca-bcbf-463501150bf3
+org"""
 ** Derivation
 In order to calculate [[model]] , we need to apply the operators to the ket and work out the prefactors.
 
@@ -196,7 +199,10 @@ where
 \begin{equation}
     \Braket{ \psi_{\ell', m_{\ell}', m_s'} | \psi_{\ell, m_{\ell}, m_s} } = \delta_{\ell' \ell} \delta_{m_{\ell}' m_{\ell}} \delta_{m_s' m_s}
 \end{equation}
+"""
 
+# ╔═╡ fc008df6-cb2b-4c00-8e7f-bc4fb42605c0
+org"""
 * Setup the Eigenvalue Problem
 ** Operator(s) on Ket
 Define how the Hamiltonian acts on the wavefunction in the ket
@@ -418,6 +424,21 @@ begin
 	fine_splitting
 end
 
+# ╔═╡ f6b70202-5a88-4ddd-b65e-e18f8ab685a3
+org"""
+* Effect of Magnetic Fields
+
+Investigate the effect of applying an external magnetic field to the spin operator by using \(\vec{B} \cdot \hat{S}_z\) as \(\hat{H}\).
+
+#+name: model-H
+\begin{equation}
+    \Braket{ \Psi_{\ell, m_{\ell}, m_s} | - \gamma B_0 \hat{S}_z | \Psi_{\ell, m_{\ell}, m_s} }
+\end{equation}
+"""
+
+# ╔═╡ 6fa4a814-58c2-4c21-8778-223c6626c5ea
+
+
 # ╔═╡ 3f8a9c38-878e-4706-8c7e-f733feb72475
 # ╠═╡ disabled = true
 #=╠═╡
@@ -444,11 +465,13 @@ end
 # ╠═fac1f703-6198-4f5c-a8b3-ae10d2a76065
 # ╟─0385debe-6f66-4f69-b1f3-a560456e3240
 # ╠═93199e3a-9593-40c2-99b3-5bb3d77b8505
-# ╟─b8414a41-9c50-48e9-a651-647f018b3def
+# ╠═b8414a41-9c50-48e9-a651-647f018b3def
 # ╠═cbd36b1a-4794-43f0-b0dc-21838fa3aa70
 # ╟─da902439-c07b-425e-8f23-b3daf9f44d81
 # ╠═cc41e84b-c401-4f78-8021-3b6482d2314c
 # ╟─a107ebfd-d6df-452f-8640-3f44283bf4ba
+# ╟─78247dda-7315-4fca-bcbf-463501150bf3
+# ╟─fc008df6-cb2b-4c00-8e7f-bc4fb42605c0
 # ╠═80705724-5b4c-4f67-8b10-03c716042036
 # ╠═2053655a-1777-4e83-9502-7d00c17de612
 # ╠═2e44cd9b-7ad9-4a24-92e1-48ddf35abc56
@@ -471,4 +494,6 @@ end
 # ╟─324873f2-dad3-438f-87e6-ce560b02aacc
 # ╟─699c1e43-c19b-4011-b8cb-8a36608017d8
 # ╠═b422a090-9756-4006-a160-237cd4ab3da4
+# ╠═f6b70202-5a88-4ddd-b65e-e18f8ab685a3
+# ╠═6fa4a814-58c2-4c21-8778-223c6626c5ea
 # ╟─3f8a9c38-878e-4706-8c7e-f733feb72475
